@@ -1,0 +1,9 @@
+numpy
+pillow
+pyproj
+global-land-mask
+requests
+fastapi
+uvicorn
+httpx
+pytest

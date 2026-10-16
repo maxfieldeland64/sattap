@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>SatTap</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main id="app">
+  <header id="top">
+    <div class="row">
+      <div class="brand">SatTap</div>
+      <div id="roundLabel" class="round">Loading…</div>
+      <div id="runningScore" class="mono score-mini" aria-label="Total score">0</div>
+    </div>
+    <div id="progress" class="progress" aria-hidden="true"></div>
+    <div id="notice" class="notice" hidden></div>
+  </header>
+
+  <section id="crop" class="crop">
+    <button id="cropBtn" class="crop-btn" aria-label="Enlarge satellite image">
+      <img id="cropImg" alt="Satellite image. Where is this?">
+    </button>
+    <div class="chips">
+      <span id="chipBand" class="chip mono"></span>
+      <span id="chipSat" class="chip mono"></span>
+    </div>
+    <span id="chipMeta" class="chip chip-meta mono"></span>
+  </section>
+
+  <section id="mapWrap" class="map-wrap">
+    <div id="map" aria-label="World map. Tap to place your guess."></div>
+    <div id="mapHint" class="map-hint">Tap the map to place your pin</div>
+  </section>
+
+  <section id="result" class="result" hidden aria-live="polite">
+    <div>
+      <div class="label mono">Distance</div>
+      <div id="resDist" class="big">0 km</div>
+    </div>
+    <div class="right">
+      <div class="label mono">Score</div>
+      <div class="big accent"><span id="resScore">0</span><span class="of"> / 100</span></div>
+    </div>
+  </section>
+
+  <footer id="bar" class="bar">
+    <button id="actionBtn" class="primary" disabled>Lock in</button>
+  </footer>
+</main>
+
+<div id="lightbox" class="lightbox" hidden>
+  <button id="lightboxClose" class="lightbox-close" aria-label="Close">&times;</button>
+  <div class="lightbox-scroll"><img id="lightboxImg" alt="Enlarged satellite image"></div>
+</div>
+
+<div id="summary" class="summary" hidden>
+  <div class="summary-card">
+    <div class="label mono" id="sumDate"></div>
+    <div class="total"><span id="sumTotal">0</span><span class="of"> / <span id="sumMax">500</span></span></div>
+    <ol id="sumList" class="sum-list"></ol>
+    <button id="copyBtn" class="primary">Copy result</button>
+    <button id="reviewBtn" class="ghost">Review rounds</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
