@@ -73,6 +73,7 @@ class Guess(BaseModel):
     round: int = Field(ge=1)
     lat: float = Field(ge=-90, le=90)
     lon: float = Field(ge=-180, le=180)
+    hint_used: bool = False
 
 
 @app.post("/api/guess")
@@ -81,11 +82,12 @@ def guess(g: Guess) -> dict:
     match = next((r for r in private["rounds"] if r["round"] == g.round), None)
     if match is None:
         raise HTTPException(404, "No such round")
-    distance_km, score = score_guess(g.lon, g.lat, match["lon"], match["lat"])
+    distance_km, score = score_guess(g.lon, g.lat, match["lon"], match["lat"], g.hint_used)
     return {
         "round": g.round,
         "distance_km": round(distance_km, 1),
         "score": score,
+        "hint_used": g.hint_used,
         "answer": {"lat": match["lat"], "lon": match["lon"]},
     }
 

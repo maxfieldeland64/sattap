@@ -11,6 +11,8 @@
     results: [], // [{round, score, distance_km, guess:{lat,lon}, answer:{lat,lon}}]
     phase: 'guess', // 'guess' | 'reveal'
     guess: null,
+    hintUsed: false, // wider-view hint taken this round (score x0.7)
+    hintView: false, // currently showing the wider view
   };
 
   let map, layers;
@@ -20,7 +22,9 @@
   const load = (d) => { try { return JSON.parse(localStorage.getItem(key(d))); } catch { return null; } };
   const save = () => {
     try {
-      localStorage.setItem(key(state.puzzle.date), JSON.stringify({ results: state.results }));
+      // hintRound remembers an unscored hint so a reload can't undo the penalty
+      const hintRound = state.hintUsed && state.phase === 'guess' ? state.index : null;
+      localStorage.setItem(key(state.puzzle.date), JSON.stringify({ results: state.results, hintRound }));
     } catch { /* private mode etc. */ }
   };
 
@@ -144,17 +148,56 @@
     return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')} UTC`;
   }
 
+  // Position the "your crop is here" box over the contained hint image.
+  function layoutHintBox() {
+    if (!state.puzzle) return;
+    const r = state.puzzle.rounds[state.index];
+    const box = $('hintBox');
+    if (!state.hintView || !r.hint_box) { box.hidden = true; return; }
+    const host = $('crop');
+    const side = Math.min(host.clientWidth, host.clientHeight);
+    const ox = (host.clientWidth - side) / 2;
+    const oy = (host.clientHeight - side) / 2;
+    const [x, y, w, h] = r.hint_box;
+    box.style.left = `${ox + x * side}px`;
+    box.style.top = `${oy + y * side}px`;
+    box.style.width = `${w * side}px`;
+    box.style.height = `${h * side}px`;
+    box.hidden = false;
+  }
+
+  function setHintView(on) {
+    const r = state.puzzle.rounds[state.index];
+    state.hintView = on;
+    $('crop').classList.toggle('hinted', on);
+    $('cropImg').src = on && r.hint_image ? r.hint_image : r.image;
+    $('hintBtn').textContent = on
+      ? 'Back to close-up'
+      : state.hintUsed ? 'Show wider view' : 'Hint · wider view (−30%)';
+    layoutHintBox();
+  }
+
+  function onHint() {
+    if (state.phase !== 'guess') return;
+    if (!state.hintUsed) { state.hintUsed = true; save(); }
+    setHintView(!state.hintView);
+  }
+
   function showRound() {
     const r = state.puzzle.rounds[state.index];
     state.phase = 'guess';
     state.guess = null;
+    state.hintUsed = state.pendingHint === state.index;
+    state.pendingHint = null;
+    state.hintView = false;
+    $('hintBtn').hidden = !r.hint_image;
     layers.clearLayers();
     map.invalidateSize();
     resetView();
 
     $('roundLabel').innerHTML = `Round ${state.index + 1} of ${nRounds()} <small>&middot; Where is this?</small>`;
     $('runningScore').textContent = total();
-    $('cropImg').src = r.image;
+    setHintView(false);
     $('lightboxImg').src = r.image;
     $('chipBand').textContent = r.band;
     $('chipSat').textContent = r.satellite;
@@ -170,6 +213,8 @@
 
   function showReveal(res, round) {
     state.phase = 'reveal';
+    setHintView(false);
+    $('hintBtn').hidden = true;
     const g = state.guess;
     const a = res.answer;
     layers.clearLayers();
@@ -182,7 +227,7 @@
     map.fitBounds(bounds, { padding: [48, 48], maxZoom: 6 });
 
     $('result').hidden = false;
-    $('resDist').textContent = `${Math.round(res.distance_km).toLocaleString()} km`;
+    $('resDist').textContent = `${Math.round(res.distance_km).toLocaleString()} km${res.hint_used ? ' · hint' : ''}`;
     countUp($('resScore'), res.score);
     $('runningScore').textContent = total();
     const last = state.index === nRounds() - 1;
@@ -201,7 +246,7 @@
     list.innerHTML = '';
     state.results.forEach((r) => {
       const li = document.createElement('li');
-      li.innerHTML = `<span>Round ${r.round}</span><span class="mono">${Math.round(r.distance_km).toLocaleString()} km</span><strong>${r.score}</strong>`;
+      li.innerHTML = `<span>Round ${r.round}${r.hint_used ? ' 💡' : ''}</span><span class="mono">${Math.round(r.distance_km).toLocaleString()} km</span><strong>${r.score}</strong>`;
       list.appendChild(li);
     });
     $('summary').hidden = false;
@@ -210,9 +255,10 @@
   function shareText() {
     return [
       `SatTap ${state.puzzle.date}`,
-      state.results.map((r) => r.score).join(' · '),
+      state.results.map((r) => `${r.score}${r.hint_used ? '*' : ''}`).join(' · '),
+      state.results.some((r) => r.hint_used) ? '* used a hint' : null,
       `Total ${total()}/${nRounds() * 100}`,
-    ].join('\n');
+    ].filter(Boolean).join('\n');
   }
 
   // ---------- actions ----------
@@ -227,11 +273,12 @@
         const res = await getJSON('/api/guess', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ date: state.puzzle.date, round: round.round, lat: state.guess.lat, lon: state.guess.lon }),
+          body: JSON.stringify({ date: state.puzzle.date, round: round.round, lat: state.guess.lat, lon: state.guess.lon, hint_used: state.hintUsed }),
         });
         state.results.push({
           round: round.round,
           score: res.score,
+          hint_used: !!res.hint_used,
           distance_km: res.distance_km,
           guess: { ...state.guess },
           answer: res.answer,
@@ -256,6 +303,8 @@
 
   function bindUi() {
     $('actionBtn').addEventListener('click', onAction);
+    $('hintBtn').addEventListener('click', onHint);
+    window.addEventListener('resize', layoutHintBox);
     $('cropBtn').addEventListener('click', () => { $('lightbox').hidden = false; });
     $('lightboxClose').addEventListener('click', () => { $('lightbox').hidden = true; });
     document.addEventListener('keydown', (e) => {
@@ -290,6 +339,7 @@
       if (saved && Array.isArray(saved.results)) {
         state.results = saved.results;
         state.index = Math.min(saved.results.length, nRounds() - 1);
+        state.pendingHint = saved.hintRound ?? null;
       }
       if (state.results.length >= nRounds()) {
         // Finished already: show the last round's reveal behind the summary, never allow a re-guess.

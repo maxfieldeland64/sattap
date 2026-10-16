@@ -50,10 +50,13 @@ def test_pixel_size_near_2km_at_nadir():
 
 def test_scoring():
     assert score_for_distance(0) == 100
-    assert score_for_distance(C.SCORE_SCALE_KM) == 37
+    assert score_for_distance(C.SCORE_FREE_KM) == 100
+    assert score_for_distance(C.SCORE_FREE_KM + C.SCORE_SCALE_KM) == 37
     assert score_for_distance(20000) == 0
     d, s = score_guess(-105.0, 40.0, -105.0, 40.0)
     assert d == pytest.approx(0, abs=1e-6) and s == 100
+    _, s_hint = score_guess(-105.0, 40.0, -105.0, 40.0, hint_used=True)
+    assert s_hint == round(100 * C.HINT_SCORE_MULT)
     assert haversine_km(0, 0, 0, 1) == pytest.approx(111.2, abs=0.5)
 
 

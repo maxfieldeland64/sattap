@@ -55,6 +55,28 @@ def cut(img: Image.Image, crop: Crop, out_size: int = C.OUT_SIZE_PX) -> Image.Im
     return img.crop(crop.box).resize((out_size, out_size), Image.LANCZOS)
 
 
+def cut_context(
+    img: Image.Image, crop: Crop, factor: int = C.HINT_CONTEXT_FACTOR, out_size: int = C.OUT_SIZE_PX
+) -> tuple[Image.Image, list[float]]:
+    """A wider view around the crop for the hint.
+
+    Returns the image and the crop's box inside it as fractions [x, y, w, h]. The window is
+    shifted (not shrunk) to stay inside the full disk image where it can.
+    """
+    half_c = min(crop.half * factor, img.width // 2)
+    x0 = min(max(crop.col - half_c, 0), img.width - 2 * half_c)
+    y0 = min(max(crop.row - half_c, 0), img.height - 2 * half_c)
+    ctx = img.crop((x0, y0, x0 + 2 * half_c, y0 + 2 * half_c)).resize((out_size, out_size), Image.LANCZOS)
+    side = 2 * half_c
+    box = [
+        (crop.col - crop.half - x0) / side,
+        (crop.row - crop.half - y0) / side,
+        2 * crop.half / side,
+        2 * crop.half / side,
+    ]
+    return ctx, [round(v, 4) for v in box]
+
+
 def lonlat_grid(grid: FullDiskGrid, crop: Crop, n: int = 24) -> tuple[np.ndarray, np.ndarray]:
     """n x n lon/lat samples spread over the crop footprint."""
     cols = np.linspace(crop.col - crop.half, crop.col + crop.half, n)

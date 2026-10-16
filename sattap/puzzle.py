@@ -16,7 +16,7 @@ import numpy as np
 from PIL import Image
 
 from . import config as C
-from .crops import Crop, cut, sample_crop
+from .crops import Crop, cut, cut_context, sample_crop
 from .filters import Stats, compute_stats, is_playable
 from .geo import FullDiskGrid, haversine_km
 
@@ -115,10 +115,16 @@ def build_daily(
     (data_dir / "public").mkdir(parents=True, exist_ok=True)
     (data_dir / "private").mkdir(parents=True, exist_ok=True)
 
+    full_images: dict[str, Image.Image] = {}
     public_rounds, private_rounds = [], []
     for i, c in enumerate(rounds, start=1):
         rel = f"{day.isoformat()}/r{i}.jpg"
         c.tile.save(data_dir / "images" / rel, quality=88)
+        if c.src.sat_key not in full_images:
+            full_images[c.src.sat_key] = Image.open(c.src.path).convert("RGB")
+        ctx_img, ctx_box = cut_context(full_images[c.src.sat_key], c.crop)
+        ctx_rel = f"{day.isoformat()}/r{i}_ctx.jpg"
+        ctx_img.save(data_dir / "images" / ctx_rel, quality=85)
         public_rounds.append(
             {
                 "round": i,
@@ -128,6 +134,8 @@ def build_daily(
                 "satellite": C.SATELLITES[c.src.sat_key]["name"],
                 "observed_at": c.src.observed_at.isoformat(),
                 "footprint_km": round(c.crop.width_km),
+                "hint_image": f"/images/{ctx_rel}",
+                "hint_box": ctx_box,
             }
         )
         private_rounds.append(

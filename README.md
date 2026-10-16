@@ -99,7 +99,16 @@ through `tools/split_antimeridian.py` to remove polygon edges that wrap across 1
 - `CROP_HALF_PX_CHOICES`: zoom level (bigger crop = more context = easier)
 - `MIN_LAND_FRAC` / `MAX_CLOUD_FRAC`: what counts as playable
 - `DIFFICULTY_QUANTILES`: how the 5 rounds ramp
-- `SCORE_SCALE_KM`: how forgiving scoring is (score = 100 * exp(-distance / scale))
+- `SCORE_FREE_KM` / `SCORE_SCALE_KM`: how forgiving scoring is. Within the free radius you get 100,
+  beyond it score = 100 * exp(-(distance - free) / scale). Defaults 150 km / 2500 km
+  (1,000 km off ~ 71, 3,000 km ~ 32, 6,000 km ~ 9).
+- `HINT_SCORE_MULT` / `HINT_CONTEXT_FACTOR`: the optional hint swaps the close-up for a view
+  3x wider with the crop outlined, and multiplies that round's score by 0.7. The penalty is
+  applied server-side (`hint_used` on `/api/guess`) and remembered across reloads.
+
+Build timing matters: run the daily build when most of the disk is sunlit (roughly 15-19 UTC).
+At 23:30 UTC GOES-East is mostly dusk and GOES-West is mostly open ocean, so almost nothing passes
+the filters.
 
 ## Known gaps (on purpose, for the POC)
 

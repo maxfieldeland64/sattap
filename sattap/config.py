@@ -46,5 +46,11 @@ MIN_ANSWER_SEPARATION_KM = 1500.0
 DIFFICULTY_QUANTILES = (0.10, 0.30, 0.50, 0.70, 0.90)
 
 # --- Scoring ---------------------------------------------------------------
-# score = round(100 * exp(-distance_km / SCORE_SCALE_KM))
-SCORE_SCALE_KM = 1500.0
+# Guesses within SCORE_FREE_KM of the answer score 100 (about the crop's own radius),
+# then score = round(100 * exp(-(distance_km - SCORE_FREE_KM) / SCORE_SCALE_KM)).
+SCORE_FREE_KM = 150.0
+SCORE_SCALE_KM = 2500.0
+# Using the wider-view hint multiplies that round's score by this.
+HINT_SCORE_MULT = 0.70
+# The hint image covers this many times the crop's width (clamped to the full disk).
+HINT_CONTEXT_FACTOR = 3
