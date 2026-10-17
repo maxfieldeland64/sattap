@@ -25,7 +25,10 @@ def _parse_at(text: str | None) -> datetime | None:
         return None
     if len(text) <= 5:
         h, m = (int(x) for x in text.split(":"))
-        return datetime.now(timezone.utc).replace(hour=h, minute=m, second=0, microsecond=0)
+        now = datetime.now(timezone.utc)
+        t = now.replace(hour=h, minute=m, second=0, microsecond=0)
+        # most recent past occurrence: if that clock time hasn't happened yet today (UTC), use yesterday
+        return t - timedelta(days=1) if t > now else t
     t = datetime.fromisoformat(text)
     return t if t.tzinfo else t.replace(tzinfo=timezone.utc)
 
@@ -121,7 +124,7 @@ def main() -> None:
 
     f = sub.add_parser("fetch")
     f.add_argument("--frames", type=int, default=C.LOOP_FRAMES, help="frames per loop (10 min apart)")
-    f.add_argument("--at", help="end the loop at this UTC time instead of now: HH:MM (today) or YYYY-MM-DDTHH:MM")
+    f.add_argument("--at", help="end the loop at this UTC time instead of now: HH:MM (most recent past, UTC) or YYYY-MM-DDTHH:MM")
     f.set_defaults(fn=cmd_fetch)
 
     b = sub.add_parser("build")
