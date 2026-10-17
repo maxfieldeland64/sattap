@@ -52,8 +52,10 @@ satellites, so no constants needed adjusting. If NOAA changes anything, re-run t
 - Tap the map to place a pin, **Lock in** scores it through `/api/guess`, the reveal shows
   distance, score, and the crop footprint, and a summary screen offers a copy-able result.
 - Progress is saved in `localStorage` per date, so a reload resumes instead of replaying.
-- The map has no tile server: it draws Natural Earth 50m land polygons (`web/land.geojson`,
-  public domain) over a flat ocean, so there are no labels, borders, or API keys.
+- The map has no tile server: it draws Natural Earth 50m land polygons (`web/land.geojson`) and
+  country borders (`web/borders.geojson`, built by `tools/make_borders.mjs`; both public domain)
+  over a flat ocean, so there are no labels or API keys. On landscape screens at least 900 px wide
+  the image and map sit side by side; phones and portrait tablets stay stacked.
   (CARTO's free dark_nolabels tiles now require an API key, which is why this is bundled.)
   Leaflet itself loads from cdnjs.
 

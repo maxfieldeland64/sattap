@@ -93,7 +93,7 @@
 
   function initMap() {
     // No tile server: land polygons (Natural Earth, bundled in /land.geojson) over a flat ocean.
-    // No labels, borders, or roads, so players have to work from shape and context alone.
+    // Country borders are drawn on top (see below); there are no labels or roads.
     map = L.map('map', {
       zoomControl: false,
       zoomSnap: 0.25,
@@ -106,6 +106,7 @@
     map.attributionControl.setPrefix(false);
     map.attributionControl.addAttribution('Land: Natural Earth');
     map.createPane('land').style.zIndex = 250;
+    map.createPane('borders').style.zIndex = 260;
     layers = L.layerGroup().addTo(map);
     resetView();
     fetch('/land.geojson')
@@ -118,6 +119,17 @@
         }).addTo(map);
       })
       .catch(() => { /* map still works as a blank canvas */ });
+    // Country borders (land borders only; coastlines come from the land polygons). No labels.
+    fetch('/borders.geojson')
+      .then((r) => r.json())
+      .then((data) => {
+        L.geoJSON(data, {
+          pane: 'borders',
+          interactive: false,
+          style: { color: '#4A5E78', weight: 0.9, opacity: 0.85, fill: false },
+        }).addTo(map);
+      })
+      .catch(() => { /* borders are a nicety */ });
     map.on('click', onMapClick);
     window.addEventListener('resize', () => {
       map.invalidateSize();

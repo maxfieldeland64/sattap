@@ -90,3 +90,29 @@ button { font-family: inherit; cursor: pointer; }
 @media (prefers-reduced-motion: no-preference) {
   .primary { transition: background 0.15s; }
 }
+
+/* ---------- wide screens (laptops, desktops, tablets in landscape) ----------
+   Image and map sit side by side. The image panel is a square sized from the viewport height
+   so the whole picture shows without cropping; the map takes the rest of the width.
+   Phones and portrait tablets keep the stacked layout above. */
+@media (min-width: 900px) and (min-aspect-ratio: 6/5) {
+  #app {
+    --panel: max(320px, min(calc(100dvh - 250px), calc(50vw - 40px)));
+    max-width: 1560px;
+    display: grid;
+    grid-template-columns: var(--panel) minmax(0, 1fr);
+    grid-template-rows: auto var(--panel) auto auto;
+    align-content: center;
+    column-gap: 20px;
+    row-gap: 14px;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+  #top { grid-column: 1 / -1; }
+  .crop { grid-column: 1; grid-row: 2; flex: none; }
+  .map-wrap { grid-column: 2; grid-row: 2; min-height: 0; }
+  .result { grid-column: 1 / -1; width: min(760px, 100%); justify-self: center; }
+  .bar { grid-column: 1 / -1; width: min(420px, 100%); justify-self: center; }
+  .chip, .map-hint { font-size: 12px; }
+  .summary-card { max-width: 460px; }
+}
