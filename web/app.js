@@ -170,7 +170,11 @@
     const r = state.puzzle.rounds[state.index];
     state.hintView = on;
     $('crop').classList.toggle('hinted', on);
-    $('cropImg').src = on && r.hint_image ? r.hint_image : r.image;
+    // Loops play while guessing; the reveal (and any missing loop) falls back to the still.
+    const animate = state.phase === 'guess';
+    const close = (animate && r.loop) || r.image;
+    const wide = (animate && r.hint_loop) || r.hint_image;
+    $('cropImg').src = on && wide ? wide : close;
     $('hintBtn').textContent = on
       ? 'Back to close-up'
       : state.hintUsed ? 'Show wider view' : 'Hint · wider view (−30%)';
@@ -198,10 +202,12 @@
     $('roundLabel').innerHTML = `Round ${state.index + 1} of ${nRounds()} <small>&middot; Where is this?</small>`;
     $('runningScore').textContent = total();
     setHintView(false);
-    $('lightboxImg').src = r.image;
+    $('lightboxImg').src = r.loop || r.image;
     $('chipBand').textContent = r.band;
     $('chipSat').textContent = r.satellite;
-    $('chipMeta').textContent = `~${r.footprint_km.toLocaleString()} km across · ${fmtTime(r.observed_at)}`;
+    const ft = r.frame_times || [];
+    const when = ft.length > 1 ? `${fmtTime(ft[0]).replace(' UTC', '')}–${fmtTime(ft[ft.length - 1])}` : fmtTime(r.observed_at);
+    $('chipMeta').textContent = `~${r.footprint_km.toLocaleString()} km across · ${when}`;
     $('mapHint').hidden = false;
     $('result').hidden = true;
     const btn = $('actionBtn');
@@ -214,6 +220,7 @@
   function showReveal(res, round) {
     state.phase = 'reveal';
     setHintView(false);
+    $('lightboxImg').src = state.puzzle.rounds[state.index].image;
     $('hintBtn').hidden = true;
     const g = state.guess;
     const a = res.answer;

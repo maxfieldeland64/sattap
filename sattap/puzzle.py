@@ -8,7 +8,7 @@ Outputs (under data_dir):
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date as Date, datetime, timezone
 from pathlib import Path
 
@@ -28,6 +28,8 @@ class SourceImage:
     sat_key: str
     path: Path
     observed_at: datetime
+    # earlier frames for the loop, [(observed_at, path)] oldest first, ending with this frame
+    loop: list[tuple[datetime, Path]] = field(default_factory=list)
 
 
 @dataclass
@@ -36,6 +38,21 @@ class Candidate:
     stats: Stats
     tile: Image.Image
     src: SourceImage
+
+
+def save_loop(frames: list[Image.Image], dest: Path) -> None:
+    """Write frames as one looping animated WebP, holding on the last frame."""
+    durations = [C.LOOP_FRAME_MS] * (len(frames) - 1) + [C.LOOP_FRAME_MS + C.LOOP_HOLD_MS]
+    frames[0].save(
+        dest,
+        format="WEBP",
+        save_all=True,
+        append_images=frames[1:],
+        duration=durations,
+        loop=0,
+        quality=C.LOOP_WEBP_QUALITY,
+        method=4,
+    )
 
 
 def collect_candidates(sources: list[SourceImage], n: int, rng: np.random.Generator) -> list[Candidate]:
@@ -115,16 +132,39 @@ def build_daily(
     (data_dir / "public").mkdir(parents=True, exist_ok=True)
     (data_dir / "private").mkdir(parents=True, exist_ok=True)
 
-    full_images: dict[str, Image.Image] = {}
+    # Cut the same crop and hint window out of every loop frame. Frames are opened one at a
+    # time (each full disk is ~90 MB decoded) and shared by all rounds from that satellite.
+    loops: dict[int, list[tuple[datetime, Image.Image, Image.Image]]] = {i: [] for i in range(len(rounds))}
+    ctx_boxes: dict[int, list[float]] = {}
+    for key in {c.src.sat_key for c in rounds}:
+        mine = [i for i, c in enumerate(rounds) if c.src.sat_key == key]
+        src = rounds[mine[0]].src
+        frames = src.loop or [(src.observed_at, src.path)]
+        for t, path in frames:
+            img = Image.open(path).convert("RGB")
+            for i in mine:
+                crop = rounds[i].crop
+                ctx_img, box = cut_context(img, crop)
+                loops[i].append((t, cut(img, crop), ctx_img))
+                ctx_boxes[i] = box
+            del img
+
     public_rounds, private_rounds = [], []
-    for i, c in enumerate(rounds, start=1):
+    for i0, c in enumerate(rounds):
+        i = i0 + 1
+        frames_i = loops[i0]
+        # the still (last frame) doubles as the reveal image and the no-animation fallback
         rel = f"{day.isoformat()}/r{i}.jpg"
-        c.tile.save(data_dir / "images" / rel, quality=88)
-        if c.src.sat_key not in full_images:
-            full_images[c.src.sat_key] = Image.open(c.src.path).convert("RGB")
-        ctx_img, ctx_box = cut_context(full_images[c.src.sat_key], c.crop)
         ctx_rel = f"{day.isoformat()}/r{i}_ctx.jpg"
-        ctx_img.save(data_dir / "images" / ctx_rel, quality=85)
+        frames_i[-1][1].save(data_dir / "images" / rel, quality=88)
+        frames_i[-1][2].save(data_dir / "images" / ctx_rel, quality=85)
+        ctx_box = ctx_boxes[i0]
+        loop_rel = ctx_loop_rel = None
+        if len(frames_i) > 1:
+            loop_rel = f"{day.isoformat()}/r{i}.webp"
+            ctx_loop_rel = f"{day.isoformat()}/r{i}_ctx.webp"
+            save_loop([f[1] for f in frames_i], data_dir / "images" / loop_rel)
+            save_loop([f[2] for f in frames_i], data_dir / "images" / ctx_loop_rel)
         public_rounds.append(
             {
                 "round": i,
@@ -136,6 +176,9 @@ def build_daily(
                 "footprint_km": round(c.crop.width_km),
                 "hint_image": f"/images/{ctx_rel}",
                 "hint_box": ctx_box,
+                "loop": f"/images/{loop_rel}" if loop_rel else None,
+                "hint_loop": f"/images/{ctx_loop_rel}" if ctx_loop_rel else None,
+                "frame_times": [f[0].isoformat() for f in frames_i],
             }
         )
         private_rounds.append(

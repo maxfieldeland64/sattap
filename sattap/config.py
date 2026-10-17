@@ -45,6 +45,13 @@ N_CANDIDATES = 300
 MIN_ANSWER_SEPARATION_KM = 1500.0
 DIFFICULTY_QUANTILES = (0.10, 0.30, 0.50, 0.70, 0.90)
 
+# --- Loop (animated WebP) --------------------------------------------------
+LOOP_FRAMES = 6          # frames per loop, ending at the puzzle frame
+LOOP_STEP_MIN = 10       # GeoColor full disk cadence
+LOOP_FRAME_MS = 280      # display time per frame
+LOOP_HOLD_MS = 1000      # extra hold on the last frame before it restarts
+LOOP_WEBP_QUALITY = 72
+
 # --- Scoring ---------------------------------------------------------------
 # Guesses within SCORE_FREE_KM of the answer score 100 (about the crop's own radius),
 # then score = round(100 * exp(-(distance_km - SCORE_FREE_KM) / SCORE_SCALE_KM)).

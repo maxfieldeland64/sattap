@@ -26,7 +26,7 @@ uvicorn sattap.api:app --reload            # then open http://127.0.0.1:8000/api
 
 ```bash
 python -m sattap.cli check-geo             # prints pixel coords for known landmarks
-python -m sattap.cli fetch                 # downloads latest 5424x5424 GeoColor for East + West
+python -m sattap.cli fetch                 # downloads the last hour (6 frames, 10 min apart) of 5424x5424 GeoColor, East + West
 python -m sattap.cli build                 # builds today's (UTC) puzzle from the newest cached frames
 ```
 
@@ -84,6 +84,19 @@ sattap/
   cli.py       fetch / build / synth / check-geo
 tests/
 ```
+
+## Loops
+
+Each round is a looping animation of the last hour (6 frames, 10 minutes apart) instead of a single
+frame. The same crop box is cut from every frame, so the scene stays registered and only the clouds
+(and light) move. Output per round under `data/images/{date}/`:
+
+- `r{n}.webp` / `r{n}_ctx.webp`: animated close-up and 3x-wider hint loops (plain `<img>`, no JS player)
+- `r{n}.jpg` / `r{n}_ctx.jpg`: stills of the last frame (reveal screen, and the fallback if a loop is missing)
+
+If fewer than two frames are cached for a satellite the build falls back to stills. Tunables are
+`LOOP_*` in `sattap/config.py`. A fetch is ~12 full-disk JPEGs (~180 MB); a build takes under a minute.
+Animated WebP is supported by current Safari, Chrome and Firefox; there is no JS frame-cycler fallback yet.
 
 ## Playability filter
 

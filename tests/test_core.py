@@ -84,3 +84,15 @@ def test_parse_listing():
         "20262891610_GOES19-ABI-FD-GEOCOLOR-5424x5424.jpg",
     ]
     assert items[-1][0].isoformat() == "2026-10-16T16:10:00+00:00"
+
+
+def test_save_loop(tmp_path):
+    from PIL import Image
+
+    from sattap.puzzle import save_loop
+
+    frames = [Image.new("RGB", (32, 32), (i * 30, 0, 0)) for i in range(4)]
+    out = tmp_path / "x.webp"
+    save_loop(frames, out)
+    im = Image.open(out)
+    assert im.n_frames == 4 and im.info.get("loop") == 0
