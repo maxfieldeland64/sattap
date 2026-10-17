@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "test": "node --test \"tests/functions/*.test.mjs\"",
-    "dev": "wrangler pages dev dist --kv ANSWERS --port 8788"
+    "db:local": "wrangler d1 migrations apply DB --local",
+    "dev": "wrangler pages dev dist --kv ANSWERS --d1 DB=REPLACE_WITH_D1_DATABASE_ID --port 8788"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"

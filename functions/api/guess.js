@@ -1,9 +1,10 @@
-// POST /api/guess  {date, round, lat, lon, hint_used?}
+// POST /api/guess  {date, round, lat, lon, hint_used?, player?}
 // -> {round, distance_km, score, hint_used, answer: {lat, lon}}
 //
 // Answers never ship with the site. The daily GitHub Action writes them to the ANSWERS KV
 // namespace under "puzzle:<date>" (see tools/publish.py), and this Function is the only reader.
 import { scoreGuess } from '../_lib/score.js';
+import { recordGuess, UUID_RE } from '../_lib/board.js';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const JSON_HEADERS = { 'content-type': 'application/json', 'cache-control': 'no-store' };
@@ -31,6 +32,17 @@ export async function onRequestPost({ request, env }) {
   if (!answer) return reply({ detail: 'No such round' }, 404);
 
   const { distance_km, score } = scoreGuess({ lat: g.lat, lon: g.lon }, answer, doc.scoring, hintUsed);
+
+  // Optional leaderboard recording. Never let a database problem break scoring.
+  if (env.DB && typeof g.player === 'string' && UUID_RE.test(g.player)) {
+    try {
+      await recordGuess(env.DB, {
+        date: g.date, player: g.player, round: g.round, score, hintUsed, nRounds: doc.rounds.length,
+      });
+    } catch (err) {
+      console.error('recordGuess failed', err);
+    }
+  }
   return reply({
     round: g.round,
     distance_km: Math.round(distance_km * 10) / 10,

@@ -7,6 +7,15 @@ All notable changes to SatTap are recorded here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Global daily leaderboard.** A shared board for everyone (hint and no-hint players together; the
+  0.7 hint multiplier already evens things out), ordered by total, then fewer hints, then who
+  finished first. Players are anonymous: a random id in the browser and a server-assigned name such
+  as "Misty Cumulus 42", with a "new name" button. Stored in Cloudflare D1 (`migrations/`,
+  `functions/api/player.js`, `functions/api/leaderboard.js`). Scores are recorded by the server from
+  its own `/api/guess` result, never reported by the client. There is no one-attempt rule: replaying
+  a round overwrites it.
+- **Personal stats** on the summary: day streak, games played, average and best, kept on the device.
+- A rank line in the shared result when the board is available.
 - Ten tiers of funny feedback (from "a cry for help" to "NOAA wants to hire you") on each round's
   result and on the final summary, chosen by score.
 

@@ -68,6 +68,18 @@
     <div class="total"><span id="sumTotal">0</span><span class="of"> / <span id="sumMax">500</span></span></div>
     <p id="sumQuip" class="quip quip-sum"></p>
     <ol id="sumList" class="sum-list"></ol>
+    <div class="stats" aria-label="Your stats on this device">
+      <div><strong id="stStreak">0</strong><span>day streak</span></div>
+      <div><strong id="stGames">0</strong><span>played</span></div>
+      <div><strong id="stAvg">0</strong><span>avg</span></div>
+      <div><strong id="stBest">0</strong><span>best</span></div>
+    </div>
+    <section id="board" class="board" hidden>
+      <div class="label mono">Today's leaderboard</div>
+      <div id="boardYou" class="board-you"></div>
+      <ol id="boardList" class="board-list"></ol>
+      <div class="board-foot">Playing as <span id="boardName"></span> <button id="rerollBtn" class="link" type="button">new name</button></div>
+    </section>
     <button id="copyBtn" class="primary">Copy result</button>
     <button id="reviewBtn" class="ghost">Review rounds</button>
   </div>

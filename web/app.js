@@ -28,6 +28,95 @@
     } catch { /* private mode etc. */ }
   };
 
+  // ---------- player (anonymous, server-named) ----------
+  // The id lives only in this browser. The server hands out a playful name; no sign-up, no typing.
+  const PLAYER_KEY = 'sattap:player';
+  const readPlayer = () => { try { return JSON.parse(localStorage.getItem(PLAYER_KEY)); } catch { return null; } };
+  const writePlayer = (p) => { try { localStorage.setItem(PLAYER_KEY, JSON.stringify(p)); } catch { /* ignore */ } };
+  let player = readPlayer(); // {player, name} or null when the leaderboard is unavailable
+
+  async function ensurePlayer(reroll = false) {
+    try {
+      const res = await getJSON('/api/player', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ player: player && player.player, reroll }),
+      });
+      player = { player: res.player, name: res.name };
+      writePlayer(player);
+    } catch { /* no leaderboard here (e.g. local dev server): the game still works */ }
+    return player;
+  }
+
+  // Personal stats come straight from the per-day saves already in localStorage.
+  function personalStats() {
+    const days = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const m = /^sattap:(\d{4}-\d{2}-\d{2})$/.exec(localStorage.key(i));
+        if (!m) continue;
+        const v = JSON.parse(localStorage.getItem(localStorage.key(i)));
+        if (v && Array.isArray(v.results) && v.results.length >= nRounds()) {
+          days.push({ date: m[1], total: v.results.reduce((a, r) => a + r.score, 0) });
+        }
+      }
+    } catch { /* ignore */ }
+    days.sort((a, b) => (a.date < b.date ? -1 : 1));
+    const played = new Set(days.map((d) => d.date));
+    // streak = consecutive game days ending today (or yesterday if today is not finished yet)
+    const dayMs = 86400e3;
+    let cur = Date.parse(gameDay() + 'T00:00:00Z');
+    if (!played.has(new Date(cur).toISOString().slice(0, 10))) cur -= dayMs;
+    let streak = 0;
+    while (played.has(new Date(cur).toISOString().slice(0, 10))) { streak++; cur -= dayMs; }
+    const totals = days.map((d) => d.total);
+    return {
+      games: days.length,
+      streak,
+      avg: totals.length ? Math.round(totals.reduce((a, b) => a + b, 0) / totals.length) : 0,
+      best: totals.length ? Math.max(...totals) : 0,
+    };
+  }
+
+  async function renderBoard() {
+    const box = $('board');
+    box.hidden = true;
+    if (!player) return;
+    let b;
+    try {
+      b = await getJSON(`/api/leaderboard?date=${encodeURIComponent(state.puzzle.date)}&player=${encodeURIComponent(player.player)}`);
+    } catch { return; }
+    box.hidden = false;
+    const head = $('boardYou');
+    if (b.you) {
+      const pct = b.you.ahead_pct == null ? '' : ` · ahead of ${b.you.ahead_pct}%`;
+      head.textContent = `You: #${b.you.rank} of ${b.total_players}${pct}`;
+    } else {
+      head.textContent = `${b.total_players} finished so far`;
+    }
+    const list = $('boardList');
+    list.innerHTML = '';
+    b.top.forEach((r) => {
+      const li = document.createElement('li');
+      if (r.you) li.className = 'me';
+      const rank = document.createElement('span'); rank.className = 'mono'; rank.textContent = `#${r.rank}`;
+      const name = document.createElement('span'); name.textContent = r.name + (r.hints ? ' 💡'.repeat(Math.min(r.hints, 1)) : '');
+      const tot = document.createElement('strong'); tot.textContent = r.total;
+      li.append(rank, name, tot);
+      list.appendChild(li);
+    });
+    if (b.you && !b.top.some((r) => r.you)) {
+      const li = document.createElement('li'); li.className = 'me';
+      const rank = document.createElement('span'); rank.className = 'mono'; rank.textContent = `#${b.you.rank}`;
+      const name = document.createElement('span'); name.textContent = b.you.name;
+      const tot = document.createElement('strong'); tot.textContent = b.you.total;
+      li.append(rank, name, tot);
+      list.appendChild(li);
+    }
+    $('boardName').textContent = player.name;
+    window.__lastRank = b.you ? `#${b.you.rank} of ${b.total_players}` : null;
+  }
+
   // ---------- api ----------
   async function getJSON(url, opts) {
     const r = await fetch(url, opts);
@@ -297,7 +386,13 @@
       li.innerHTML = `<span>Round ${r.round}${r.hint_used ? ' 💡' : ''}</span><span class="mono">${Math.round(r.distance_km).toLocaleString()} km</span><strong>${r.score}</strong>`;
       list.appendChild(li);
     });
+    const st = personalStats();
+    $('stGames').textContent = st.games;
+    $('stStreak').textContent = st.streak;
+    $('stAvg').textContent = st.avg;
+    $('stBest').textContent = st.best;
     $('summary').hidden = false;
+    renderBoard();
   }
 
   function shareText() {
@@ -306,6 +401,7 @@
       state.results.map((r) => `${r.score}${r.hint_used ? '*' : ''}`).join(' · '),
       state.results.some((r) => r.hint_used) ? '* used a hint' : null,
       `Total ${total()}/${nRounds() * 100}`,
+      window.__lastRank ? `Rank ${window.__lastRank}` : null,
     ].filter(Boolean).join('\n');
   }
 
@@ -321,7 +417,7 @@
         const res = await getJSON('/api/guess', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ date: state.puzzle.date, round: round.round, lat: state.guess.lat, lon: state.guess.lon, hint_used: state.hintUsed }),
+          body: JSON.stringify({ date: state.puzzle.date, round: round.round, lat: state.guess.lat, lon: state.guess.lon, hint_used: state.hintUsed, player: player ? player.player : undefined }),
         });
         state.results.push({
           round: round.round,
@@ -358,6 +454,12 @@
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') { $('lightbox').hidden = true; }
     });
+    $('rerollBtn').addEventListener('click', async () => {
+      $('rerollBtn').disabled = true;
+      await ensurePlayer(true);
+      $('rerollBtn').disabled = false;
+      renderBoard();
+    });
     $('reviewBtn').addEventListener('click', () => { $('summary').hidden = true; });
     $('copyBtn').addEventListener('click', async () => {
       const text = shareText();
@@ -375,6 +477,7 @@
   async function boot() {
     bindUi();
     initMap();
+    ensurePlayer(); // fire and forget; /api/guess works without it
     try {
       const { puzzle, fallback } = await loadPuzzle();
       state.puzzle = puzzle;

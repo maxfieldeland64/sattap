@@ -1,5 +1,6 @@
 # Cloudflare Pages project config. The daily workflow substitutes the real KV namespace id
-# (repo variable CF_KV_NAMESPACE_ID) for the placeholder below before deploying.
+# (repo variable CF_KV_NAMESPACE_ID) and D1 database id (CF_D1_DATABASE_ID) for the placeholders
+# below before deploying.
 name = "sattap"
 compatibility_date = "2025-09-01"
 pages_build_output_dir = "dist"
@@ -7,3 +8,9 @@ pages_build_output_dir = "dist"
 [[kv_namespaces]]
 binding = "ANSWERS"
 id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "sattap"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"

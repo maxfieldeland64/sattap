@@ -47,9 +47,19 @@ You need a free Cloudflare account. All commands run in the repo root.
 
    Copy the `id` it prints.
 
+3b. **Create the leaderboard database (D1)**
+
+   ```bash
+   npx wrangler d1 create sattap
+   ```
+
+   Copy the `database_id` it prints into the repo variable `CF_D1_DATABASE_ID`. The workflow creates
+   the tables itself (`wrangler d1 migrations apply`), so nothing else is needed. Players are
+   anonymous: the browser keeps a random id and the server assigns a name like "Misty Cumulus 42".
+
 4. **Create an API token** for GitHub Actions: Cloudflare dashboard -> My Profile -> API Tokens ->
-   Create Token -> Custom token, with two account permissions: **Cloudflare Pages: Edit** and
-   **Workers KV Storage: Edit**. Also copy your **Account ID** (dashboard home, right sidebar).
+   Create Token -> Custom token, with three account permissions: **Cloudflare Pages: Edit** and
+   **Workers KV Storage: Edit** and **D1: Edit** (the leaderboard). Also copy your **Account ID** (dashboard home, right sidebar).
 
 5. **Add settings in GitHub**: repo -> Settings -> Secrets and variables -> Actions.
 
@@ -58,6 +68,7 @@ You need a free Cloudflare account. All commands run in the repo root.
    | Secret | `CLOUDFLARE_API_TOKEN` | the token from step 4 |
    | Secret | `CLOUDFLARE_ACCOUNT_ID` | your account id |
    | Variable | `CF_KV_NAMESPACE_ID` | the KV id from step 3 |
+   | Variable | `CF_D1_DATABASE_ID` | the D1 id from the leaderboard step below |
    | Variable | `CF_PAGES_PROJECT` | `sattap` (the project name from step 2) |
    | Variable | `SITE_URL` | the live address, e.g. `https://sattap.pages.dev` (optional on the very first run) |
 
@@ -96,7 +107,8 @@ the FastAPI app serves the same `/puzzles/*.json` and `/api/guess` routes.
 
 - `/api/guess` has no rate limit. A determined player can probe it for answers. Cloudflare's
   dashboard can add a rate-limiting rule on `/api/guess` without code changes.
-- Progress lives in each player's browser (`localStorage`), so there are no accounts, streaks or
-  leaderboards yet. Cloudflare D1 is the natural next step.
+- Progress and stats live in each player's browser (`localStorage`). The leaderboard is anonymous
+  and there is no one-attempt rule, so it is for fun, not competition-grade. Accounts would be the
+  next step. Clearing site data creates a new player identity.
 - Wrangler's `kv bulk put` flags and the token permission names above are from wrangler 4.x and the
   dashboard at the time of writing; if a step errors, `npx wrangler <command> --help` is the source of truth.
