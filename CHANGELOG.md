@@ -6,6 +6,10 @@ All notable changes to SatTap are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Ten tiers of funny feedback (from "a cry for help" to "NOAA wants to hire you") on each round's
+  result and on the final summary, chosen by score.
+
 ## [1.2.0] - 2026-10-16
 
 Animated loops, a hint, friendlier scoring, a bigger desktop layout, and a way to put the game online.

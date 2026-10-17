@@ -78,6 +78,24 @@
     requestAnimationFrame(step);
   }
 
+  // Funny feedback, ten tiers from shame to glory. Picked by score (a hinted score is scaled back
+  // up by the hint penalty first, so using the hint doesn't cost you a tier).
+  const HINT_MULT = 0.7; // matches HINT_SCORE_MULT in sattap/config.py
+  const QUIPS = [
+    [97, 'Bullseye. NOAA wants to hire you.'],
+    [85, 'Scary good. Are you the satellite?'],
+    [70, 'Nice. You can read clouds AND coastlines.'],
+    [55, 'Okay, someone was paying attention in class.'],
+    [40, "Respectable. Your atlas isn't just a coaster."],
+    [30, 'Warm-ish. Like coffee left on the dashboard.'],
+    [20, 'Your geography teacher just felt a chill.'],
+    [10, "Right planet. That's the nicest thing we can say."],
+    [3, 'The satellite saw that. The satellite is judging you.'],
+    [0, "That wasn't a guess, that was a cry for help."],
+  ];
+  const rawScore = (score, hintUsed) => (hintUsed ? Math.min(100, Math.round(score / HINT_MULT)) : score);
+  const quipFor = (raw) => QUIPS.find(([min]) => raw >= min)[1];
+
   const total = () => state.results.reduce((a, r) => a + r.score, 0);
   const nRounds = () => state.puzzle.rounds.length;
 
@@ -256,6 +274,7 @@
     $('result').hidden = false;
     $('resDist').textContent = `${Math.round(res.distance_km).toLocaleString()} km${res.hint_used ? ' · hint' : ''}`;
     countUp($('resScore'), res.score);
+    $('resQuip').textContent = quipFor(rawScore(res.score, res.hint_used)) + (res.hint_used ? ' (Hint noted.)' : '');
     $('runningScore').textContent = total();
     const last = state.index === nRounds() - 1;
     const btn = $('actionBtn');
@@ -269,6 +288,8 @@
     $('sumDate').textContent = `SatTap · ${state.puzzle.date}`;
     $('sumTotal').textContent = total();
     $('sumMax').textContent = max;
+    const avg = state.results.reduce((a, r) => a + rawScore(r.score, r.hint_used), 0) / Math.max(state.results.length, 1);
+    $('sumQuip').textContent = quipFor(Math.round(avg));
     const list = $('sumList');
     list.innerHTML = '';
     state.results.forEach((r) => {
