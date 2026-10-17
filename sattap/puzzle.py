@@ -19,6 +19,7 @@ from . import config as C
 from .crops import Crop, cut, cut_context, sample_crop
 from .filters import Stats, compute_stats, is_playable
 from .geo import FullDiskGrid, haversine_km
+from .scoring import scoring_params
 
 Image.MAX_IMAGE_PIXELS = None
 
@@ -197,7 +198,7 @@ def build_daily(
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
     public = {**meta, "rounds": public_rounds}
-    private = {**meta, "rounds": private_rounds}
+    private = {**meta, "scoring": scoring_params(), "rounds": private_rounds}
     (data_dir / "public" / f"{day.isoformat()}.json").write_text(json.dumps(public, indent=2))
     (data_dir / "private" / f"{day.isoformat()}.json").write_text(json.dumps(private, indent=2))
     return public

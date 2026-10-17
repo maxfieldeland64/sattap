@@ -23,6 +23,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from .gameday import game_day
 from .scoring import score_guess
 
 DATA = Path(os.environ.get("SATTAP_DATA", "data"))
@@ -50,9 +51,21 @@ def healthz() -> dict:
     return {"ok": True}
 
 
+@app.get("/puzzles/{name}")
+def puzzle_static(name: str) -> dict:
+    """Same URLs the Cloudflare deployment serves as static files: /puzzles/YYYY-MM-DD.json
+    and /puzzles/latest.json."""
+    if not name.endswith(".json"):
+        raise HTTPException(404, "Not found")
+    stem = name[: -len(".json")]
+    if stem == "latest":
+        return puzzle_latest()
+    return _load("public", stem)
+
+
 @app.get("/api/puzzle/today")
 def puzzle_today() -> dict:
-    return _load("public", datetime.now(timezone.utc).date().isoformat())
+    return _load("public", game_day().isoformat())
 
 
 @app.get("/api/puzzle/latest")

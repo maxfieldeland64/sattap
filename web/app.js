@@ -31,22 +31,30 @@
   // ---------- api ----------
   async function getJSON(url, opts) {
     const r = await fetch(url, opts);
-    if (!r.ok) {
+    // A host that answers misses with an HTML page (SPA fallback) counts as "not found".
+    const isJson = (r.headers.get('content-type') || '').includes('json');
+    if (!r.ok || !isJson) {
       const e = new Error(`HTTP ${r.status}`);
-      e.status = r.status;
+      e.status = r.ok ? 404 : r.status;
       throw e;
     }
     return r.json();
   }
 
+  // The puzzle for day D is live from ROLLOVER_UTC_HOUR on D until the same hour on D+1.
+  // Must match ROLLOVER_UTC_HOUR in sattap/config.py.
+  const ROLLOVER_UTC_HOUR = 18;
+  const gameDay = () => new Date(Date.now() - ROLLOVER_UTC_HOUR * 3600e3).toISOString().slice(0, 10);
+
+  // Puzzles are plain JSON files (static on Cloudflare Pages, served by FastAPI locally).
   async function loadPuzzle() {
     const wanted = new URLSearchParams(location.search).get('date');
-    if (wanted) return { puzzle: await getJSON(`/api/puzzle/${wanted}`), fallback: false };
+    if (wanted) return { puzzle: await getJSON(`/puzzles/${wanted}.json`), fallback: false };
     try {
-      return { puzzle: await getJSON('/api/puzzle/today'), fallback: false };
+      return { puzzle: await getJSON(`/puzzles/${gameDay()}.json`), fallback: false };
     } catch (e) {
       if (e.status !== 404) throw e;
-      return { puzzle: await getJSON('/api/puzzle/latest'), fallback: true };
+      return { puzzle: await getJSON('/puzzles/latest.json'), fallback: true };
     }
   }
 
@@ -341,6 +349,15 @@
         const n = $('notice');
         n.hidden = false;
         n.textContent = `No puzzle for today yet. Showing ${puzzle.date}.`;
+      }
+      // dev shortcut: ?fresh=1 forgets saved progress for this puzzle date
+      // (the param is dropped from the URL afterwards so a reload keeps your progress)
+      const qs = new URLSearchParams(location.search);
+      if (qs.has('fresh')) {
+        try { localStorage.removeItem(key(puzzle.date)); } catch { /* ignore */ }
+        qs.delete('fresh');
+        const rest = qs.toString();
+        history.replaceState(null, '', location.pathname + (rest ? `?${rest}` : ''));
       }
       const saved = load(puzzle.date);
       if (saved && Array.isArray(saved.results)) {

@@ -47,8 +47,8 @@ satellites, so no constants needed adjusting. If NOAA changes anything, re-run t
 `uvicorn sattap.api:app --reload` also serves a small mobile-first web app at
 `http://127.0.0.1:8000/` (vanilla JS + Leaflet, no build step, files in `web/`).
 
-- Loads today's puzzle, or the latest built one if today's does not exist yet
-  (`?date=YYYY-MM-DD` loads a specific day).
+- Loads the current game day's puzzle (rolls over at 18:00 UTC), or the latest built one if it
+  does not exist yet (`?date=YYYY-MM-DD` loads a specific day).
 - Tap the map to place a pin, **Lock in** scores it through `/api/guess`, the reveal shows
   distance, score, and the crop footprint, and a summary screen offers a copy-able result.
 - Progress is saved in `localStorage` per date, so a reload resumes instead of replaying.
@@ -61,12 +61,20 @@ satellites, so no constants needed adjusting. If NOAA changes anything, re-run t
 
 | Route | Purpose |
 |---|---|
-| `GET /api/puzzle/today` | today's puzzle (UTC date), **no answers** |
-| `GET /api/puzzle/{YYYY-MM-DD}` | puzzle for a date |
+| `GET /puzzles/{YYYY-MM-DD}.json`, `/puzzles/latest.json` | puzzle for a date / the newest one, **no answers** (static files on Cloudflare) |
+| `GET /api/puzzle/today` | the current game day's puzzle (rolls over at 18:00 UTC), FastAPI only |
 | `POST /api/guess` | `{date, round, lat, lon}` -> `{distance_km, score, answer}` |
 | `GET /images/{date}/r{n}.jpg` | crop images |
 
 Answers live in `data/private/` and are only returned by `/api/guess`.
+
+## Deploying
+
+Production setup is Cloudflare Pages (static site + one Function) with a daily GitHub Action that
+builds the puzzle and deploys it. Step-by-step: [docs/DEPLOY.md](docs/DEPLOY.md).
+
+Local pieces: `npm test` (Function tests), `tools/publish.py` (assembles `dist/` and the KV payload),
+`npm run dev` (Pages + Function + local KV). `?fresh=1` on any puzzle URL clears that day's saved game.
 
 ## Layout
 
@@ -137,4 +145,4 @@ the filters.
 - Difficulty is a color-based heuristic (cloud fraction + coastline), not learned from players.
 - Night-side crops are excluded by brightness rather than handled.
 - Scoring answers are not rate limited, so a player can re-guess a round via the API.
-- No scheduler yet: run `fetch` + `build` from cron or a GitHub Action once a day.
+- Guess requests are not rate limited (see docs/DEPLOY.md for the Cloudflare-side fix).

@@ -6,3 +6,7 @@ __pycache__/
 
 # generated data: downloaded GeoColor frames, crops, daily puzzle files (incl. private answers)
 data/
+node_modules/
+dist/
+build/
+.wrangler/

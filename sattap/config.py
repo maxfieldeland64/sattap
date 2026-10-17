@@ -45,6 +45,12 @@ N_CANDIDATES = 300
 MIN_ANSWER_SEPARATION_KM = 1500.0
 DIFFICULTY_QUANTILES = (0.10, 0.30, 0.50, 0.70, 0.90)
 
+# --- Game day --------------------------------------------------------------
+# The puzzle for day D is live from ROLLOVER_UTC_HOUR on D until the same hour on D+1.
+# 18:00 UTC = noon in Denver / 2pm in New York, an hour after the daily build job (17:00 UTC)
+# so a late scheduled run still lands before players roll over. Keep web/app.js in sync.
+ROLLOVER_UTC_HOUR = 18
+
 # --- Loop (animated WebP) --------------------------------------------------
 LOOP_FRAMES = 6          # frames per loop, ending at the puzzle frame
 LOOP_STEP_MIN = 10       # GeoColor full disk cadence

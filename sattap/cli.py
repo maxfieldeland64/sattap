@@ -13,6 +13,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from . import config as C
+from .gameday import game_day
 from .geo import FullDiskGrid
 from .puzzle import SourceImage, build_daily
 
@@ -76,7 +77,7 @@ def cmd_build(args) -> None:
     sources = _cached_sources(cache, _parse_at(args.at))
     if not sources:
         raise SystemExit(f"No cached images in {cache}. Run `fetch` (or `synth`) first.")
-    day = date.fromisoformat(args.date) if args.date else datetime.now(timezone.utc).date()
+    day = date.fromisoformat(args.date) if args.date else game_day()
     try:
         pub = build_daily(day, sources, Path(args.data), args.rounds, args.candidates, args.seed)
     except RuntimeError as e:

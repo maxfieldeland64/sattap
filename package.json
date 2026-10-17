@@ -1,0 +1,12 @@
+{
+  "name": "sattap",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"tests/functions/*.test.mjs\"",
+    "dev": "wrangler pages dev dist --kv ANSWERS --port 8788"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
