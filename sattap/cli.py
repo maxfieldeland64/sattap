@@ -19,8 +19,19 @@ from .puzzle import SourceImage, build_daily
 DEFAULT_DATA = Path("data")
 
 
-def _cached_sources(cache_dir: Path) -> list[SourceImage]:
-    """Newest cached image per satellite, with observed_at parsed from the filename."""
+def _parse_at(text: str | None) -> datetime | None:
+    """--at accepts 'YYYY-MM-DDTHH:MM' (UTC) or just 'HH:MM' meaning today (UTC)."""
+    if not text:
+        return None
+    if len(text) <= 5:
+        h, m = (int(x) for x in text.split(":"))
+        return datetime.now(timezone.utc).replace(hour=h, minute=m, second=0, microsecond=0)
+    t = datetime.fromisoformat(text)
+    return t if t.tzinfo else t.replace(tzinfo=timezone.utc)
+
+
+def _cached_sources(cache_dir: Path, at: datetime | None = None) -> list[SourceImage]:
+    """Newest cached image per satellite (at or before `at`), observed_at parsed from the filename."""
     from .sources import _NAME_RE
 
     best: dict[str, SourceImage] = {}
@@ -34,6 +45,8 @@ def _cached_sources(cache_dir: Path) -> list[SourceImage]:
         if key is None:
             continue
         t = datetime.strptime(stamp, "%Y%j%H%M").replace(tzinfo=timezone.utc)
+        if at is not None and t > at:
+            continue
         seen.setdefault(key, {})[t] = p
         if key not in best or t > best[key].observed_at:
             best[key] = SourceImage(key, p, t)
@@ -49,7 +62,7 @@ def cmd_fetch(args) -> None:
 
     cache = Path(args.data) / "cache"
     for key in ("east", "west"):
-        frames = fetch_loop(key, cache, args.frames)
+        frames = fetch_loop(key, cache, args.frames, _parse_at(args.at))
         print(f"{key}: {len(frames)} frames, {frames[0].observed_at:%H:%M} to {frames[-1].observed_at:%H:%M} UTC")
         for f in frames:
             print(f"  {f.path}")
@@ -57,11 +70,20 @@ def cmd_fetch(args) -> None:
 
 def cmd_build(args) -> None:
     cache = Path(args.data) / "cache"
-    sources = _cached_sources(cache)
+    sources = _cached_sources(cache, _parse_at(args.at))
     if not sources:
         raise SystemExit(f"No cached images in {cache}. Run `fetch` (or `synth`) first.")
     day = date.fromisoformat(args.date) if args.date else datetime.now(timezone.utc).date()
-    pub = build_daily(day, sources, Path(args.data), args.rounds, args.candidates, args.seed)
+    try:
+        pub = build_daily(day, sources, Path(args.data), args.rounds, args.candidates, args.seed)
+    except RuntimeError as e:
+        newest = max(s.observed_at for s in sources)
+        raise SystemExit(
+            f"{e}\n\nThe newest cached frame is {newest:%Y-%m-%d %H:%M} UTC. That is probably night over the "
+            "Americas (roughly 15-19 UTC works best). To build from an earlier daytime hour, run:\n"
+            f"  python3 -m sattap.cli fetch --at {newest:%Y-%m-%d}T17:00\n"
+            f"  python3 -m sattap.cli build --at {newest:%Y-%m-%d}T17:00"
+        )
     print(json.dumps(pub, indent=2))
 
 
@@ -99,6 +121,7 @@ def main() -> None:
 
     f = sub.add_parser("fetch")
     f.add_argument("--frames", type=int, default=C.LOOP_FRAMES, help="frames per loop (10 min apart)")
+    f.add_argument("--at", help="end the loop at this UTC time instead of now: HH:MM (today) or YYYY-MM-DDTHH:MM")
     f.set_defaults(fn=cmd_fetch)
 
     b = sub.add_parser("build")
@@ -106,6 +129,7 @@ def main() -> None:
     b.add_argument("--rounds", type=int, default=C.N_ROUNDS)
     b.add_argument("--candidates", type=int, default=C.N_CANDIDATES)
     b.add_argument("--seed", type=int)
+    b.add_argument("--at", help="use the newest cached frames at or before this UTC time (same format as fetch --at)")
     b.set_defaults(fn=cmd_build)
 
     s = sub.add_parser("synth")

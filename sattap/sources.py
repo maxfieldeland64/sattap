@@ -82,8 +82,10 @@ def loop_frames(
     n: int = C.LOOP_FRAMES,
     step_min: int = C.LOOP_STEP_MIN,
     size: int = C.GEOCOLOR_SIZE,
+    at: datetime | None = None,
 ) -> list[Frame]:
-    """The newest frame plus up to n-1 earlier ones at step_min spacing, oldest first.
+    """The newest frame (at or before `at`, if given) plus up to n-1 earlier ones at
+    step_min spacing, oldest first.
 
     Missing slots (the CDN occasionally skips a scan) are skipped rather than substituted,
     so the loop can come back shorter than n.
@@ -92,13 +94,15 @@ def loop_frames(
     r = requests.get(base, headers=_HEADERS, timeout=C.HTTP_TIMEOUT_S)
     r.raise_for_status()
     items = parse_listing(r.text, size)
+    if at is not None:
+        items = [it for it in items if it[0] <= at]
     if not items:
-        raise RuntimeError(f"No {size}x{size} GeoColor files found at {base}")
+        raise RuntimeError(f"No {size}x{size} GeoColor files found at {base}" + (f" at or before {at:%Y-%m-%d %H:%M} UTC" if at else ""))
     by_time = dict(items)
     newest = items[-1][0]
     want = [newest - timedelta(minutes=step_min * k) for k in range(n - 1, -1, -1)]
     return [Frame(sat_key, base + by_time[t], t) for t in want if t in by_time]
 
 
-def fetch_loop(sat_key: str, cache_dir: Path, n: int = C.LOOP_FRAMES) -> list[Frame]:
-    return [download(f, cache_dir) for f in loop_frames(sat_key, n)]
+def fetch_loop(sat_key: str, cache_dir: Path, n: int = C.LOOP_FRAMES, at: datetime | None = None) -> list[Frame]:
+    return [download(f, cache_dir) for f in loop_frames(sat_key, n, at=at)]

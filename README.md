@@ -98,6 +98,15 @@ If fewer than two frames are cached for a satellite the build falls back to stil
 `LOOP_*` in `sattap/config.py`. A fetch is ~12 full-disk JPEGs (~180 MB); a build takes under a minute.
 Animated WebP is supported by current Safari, Chrome and Firefox; there is no JS frame-cycler fallback yet.
 
+### Building outside daylight hours
+
+The CDN keeps history, so you can build from an earlier daytime hour at any time:
+
+```bash
+python3 -m sattap.cli fetch --at 17:00        # loop ending 17:00 UTC today (or --at 2026-10-16T17:00)
+python3 -m sattap.cli build --at 17:00
+```
+
 ## Playability filter
 
 Candidates are rejected unless they are in full daylight (solar elevation >= 15 degrees at every
