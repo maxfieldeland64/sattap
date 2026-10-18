@@ -45,7 +45,7 @@ satellites, so no constants needed adjusting. If NOAA changes anything, re-run t
 ## Web app
 
 `uvicorn sattap.api:app --reload` also serves a small mobile-first web app at
-`http://127.0.0.1:8000/` (vanilla JS + Leaflet, no build step, files in `web/`).
+`http://127.0.0.1:8000/` (vanilla JS + a d3-geo globe, no build step, files in `web/`).
 
 - `/` is the landing page: a looping full-disk GOES-West view, today's leaderboard, and a button
   into the game (it reads "Continue" or "See your result" once you have started or finished).
@@ -55,15 +55,18 @@ satellites, so no constants needed adjusting. If NOAA changes anything, re-run t
 - `/play/` is the game itself. It
   loads the current game day's puzzle (rolls over at 18:00 UTC), or the latest built one if it
   does not exist yet (`?date=YYYY-MM-DD` loads a specific day).
-- Tap the map to place a pin, **Lock in** scores it through `/api/guess`, the reveal shows
-  distance, score, and the crop footprint, and a summary screen offers a copy-able result.
+- The map is a 3D globe (`web/globe.js`, drawn on a canvas with d3-geo's orthographic projection;
+  d3 is vendored in `web/vendor/`, so there is no CDN dependency for it). Drag to spin (it keeps
+  a little momentum), scroll or pinch to zoom toward the cursor or your fingers, tap to drop a
+  pin. Arrow keys spin, `+`/`-` zoom, Enter pins the centre; on-screen +, - and reset buttons
+  too. North always stays up. Each round opens centred on the satellite that took the picture.
+- **Lock in** scores the pin through `/api/guess`; the reveal frames your guess, the answer and
+  the crop's footprint on the globe, and a summary screen offers a copy-able result.
 - Progress is saved in `localStorage` per date, so a reload resumes instead of replaying.
-- The map has no tile server: it draws Natural Earth 50m land polygons (`web/land.geojson`) and
+- The globe has no tile server: it draws Natural Earth 50m land polygons (`web/land.geojson`) and
   country borders (`web/borders.geojson`, built by `tools/make_borders.mjs`; both public domain)
   over a flat ocean, so there are no labels or API keys. On landscape screens at least 900 px wide
-  the image and map sit side by side; phones and portrait tablets stay stacked.
-  (CARTO's free dark_nolabels tiles now require an API key, which is why this is bundled.)
-  Leaflet itself loads from cdnjs.
+  the image and globe sit side by side; phones and portrait tablets stay stacked.
 
 ## API
 

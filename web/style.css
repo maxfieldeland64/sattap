@@ -50,11 +50,17 @@ button { font-family: inherit; cursor: pointer; }
 
 /* map */
 .map-wrap { position: relative; flex: 1; min-height: 160px; border-radius: 16px; overflow: hidden; border: 1px solid var(--line); background: #0F1620; }
-#map { position: absolute; inset: 0; background: #0F1620; }
-.map-hint { position: absolute; left: 12px; top: 12px; z-index: 500; pointer-events: none; font-size: 12px; color: var(--muted); background: rgba(11,15,20,0.78); padding: 6px 8px; border-radius: 6px; }
-.leaflet-container { font-family: inherit; cursor: crosshair; }
-.leaflet-control-attribution { background: rgba(11,15,20,0.7) !important; color: var(--muted) !important; font-size: 10px; }
-.leaflet-control-attribution a { color: var(--muted) !important; }
+#map { position: absolute; inset: 0; background: #080C12; }
+#globe { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+#globe:active { cursor: grabbing; }
+#globe:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 16px; }
+.map-hint { position: absolute; left: 12px; top: 12px; z-index: 5; pointer-events: none; font-size: 12px; color: var(--muted); background: rgba(11,15,20,0.78); padding: 6px 8px; border-radius: 6px; }
+.map-hint[hidden] { display: none; }
+.map-credit { position: absolute; left: 10px; bottom: 8px; z-index: 5; pointer-events: none; font-size: 10px; color: var(--muted); opacity: 0.8; }
+.map-ctrl { position: absolute; right: 12px; top: 12px; z-index: 5; display: flex; flex-direction: column; gap: 6px; }
+.map-ctrl button { width: 38px; height: 38px; border-radius: 10px; border: 1px solid #243040; background: rgba(11,15,20,0.78); color: var(--text); font-size: 20px; line-height: 1; padding: 0; }
+.map-ctrl button:hover { border-color: var(--accent); }
+.map-ctrl button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* result */
 .result { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; row-gap: 6px; padding: 0 2px; }
