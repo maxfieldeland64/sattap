@@ -7,6 +7,12 @@ All notable changes to SatTap are recorded here. The format follows
 ## [Unreleased]
 
 ### Changed
+- **The pin map is now a 3D globe.** Drag to spin (with momentum), scroll or pinch to zoom toward
+  the cursor or fingers, tap to place a pin. North stays up, there are +/-/reset buttons and
+  keyboard controls, and each round starts centred under the satellite that took the picture.
+  The reveal flies to frame your guess, the answer and the crop's footprint. It replaces Leaflet
+  with a canvas globe (`web/globe.js`) using vendored d3-geo and d3-array (`web/vendor/`, ISC),
+  still on the bundled land and border data, so it needs no tiles, WebGL or API keys.
 - The game moved from `/` to `/play/`. The SatTap name in the game's header links home.
 
 ### Added
