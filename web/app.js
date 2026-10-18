@@ -1,4 +1,4 @@
-/* SatTap web POC: vanilla JS + Leaflet. Talks to /api/puzzle/* and /api/guess. */
+/* SatTap web POC: vanilla JS + a d3-geo globe (web/globe.js). Talks to /puzzles/*, /api/guess and /api/leaderboard. */
 (() => {
   'use strict';
 
@@ -15,7 +15,7 @@
     hintView: false, // currently showing the wider view
   };
 
-  let map, layers;
+  let globe;
 
   // ---------- storage ----------
   const key = (d) => `sattap:${d}`;
@@ -148,14 +148,6 @@
   }
 
   // ---------- helpers ----------
-  const normLng = (lng) => ((((lng + 180) % 360) + 360) % 360) - 180;
-
-  function footprintBounds(lat, lon, km) {
-    const dLat = km / 2 / 111.2;
-    const dLon = dLat / Math.max(Math.cos((lat * Math.PI) / 180), 0.05);
-    return L.latLngBounds([lat - dLat, lon - dLon], [lat + dLat, lon + dLon]);
-  }
-
   function countUp(node, to, ms = 600) {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { node.textContent = to; return; }
     const t0 = performance.now();
@@ -188,72 +180,37 @@
   const total = () => state.results.reduce((a, r) => a + r.score, 0);
   const nRounds = () => state.puzzle.rounds.length;
 
-  // ---------- map ----------
-  // World view used at the start of every round (fits the whole map in the panel).
-  const WORLD = [[-58, -170], [72, 170]];
-
-  function resetView() {
-    map.setMinZoom(0);
-    map.fitBounds(WORLD, { animate: false });
-    map.setMinZoom(map.getZoom());
-  }
+  // ---------- globe ----------
+  // A 3D-looking globe (web/globe.js) instead of a flat map: drag to spin, pinch or scroll to zoom,
+  // tap to drop a pin. Land polygons (Natural Earth, bundled in /land.geojson) and country borders
+  // are drawn over a flat ocean; there are no labels, roads or API keys.
+  // Each round opens centred under the satellite that took the picture (the chip already names it).
+  const SAT_LON = { 'GOES-18': -137.0, 'GOES-19': -75.2 }; // sub-satellite longitudes, as in sattap/config.py
+  const startLon = (round) => (SAT_LON[round.satellite] !== undefined ? SAT_LON[round.satellite] : -100);
 
   function initMap() {
-    // No tile server: land polygons (Natural Earth, bundled in /land.geojson) over a flat ocean.
-    // Country borders are drawn on top (see below); there are no labels or roads.
-    map = L.map('map', {
-      zoomControl: false,
-      zoomSnap: 0.25,
-      maxZoom: 9,
-      preferCanvas: true,
-      maxBounds: [[-85, -180], [85, 180]],
-      maxBoundsViscosity: 1.0,
-      attributionControl: true,
-    });
-    map.attributionControl.setPrefix(false);
-    map.attributionControl.addAttribution('Land: Natural Earth');
-    map.createPane('land').style.zIndex = 250;
-    map.createPane('borders').style.zIndex = 260;
-    layers = L.layerGroup().addTo(map);
-    resetView();
+    globe = SatTapGlobe.create($('globe'), { onTap: onGlobeTap, colors: COLORS });
+    globe.resize();
     fetch('/land.geojson')
       .then((r) => r.json())
-      .then((data) => {
-        L.geoJSON(data, {
-          pane: 'land',
-          interactive: false,
-          style: { color: '#2B3A4D', weight: 0.6, fillColor: '#1A2736', fillOpacity: 1 },
-        }).addTo(map);
-      })
-      .catch(() => { /* map still works as a blank canvas */ });
-    // Country borders (land borders only; coastlines come from the land polygons). No labels.
+      .then((data) => globe.setData({ land: data }))
+      .catch(() => { /* the globe still works as a blank ball */ });
     fetch('/borders.geojson')
       .then((r) => r.json())
-      .then((data) => {
-        L.geoJSON(data, {
-          pane: 'borders',
-          interactive: false,
-          style: { color: '#4A5E78', weight: 0.9, opacity: 0.85, fill: false },
-        }).addTo(map);
-      })
+      .then((data) => globe.setData({ borders: data }))
       .catch(() => { /* borders are a nicety */ });
-    map.on('click', onMapClick);
-    window.addEventListener('resize', () => {
-      map.invalidateSize();
-      if (state.phase === 'guess' && !state.guess) resetView();
+    $('zoomIn').addEventListener('click', () => globe.zoomBy(1.7));
+    $('zoomOut').addEventListener('click', () => globe.zoomBy(1 / 1.7));
+    $('zoomReset').addEventListener('click', () => {
+      const round = state.puzzle && state.puzzle.rounds[state.index];
+      globe.resetView(round ? startLon(round) : -100);
     });
   }
 
-  const pin = (latlng, color, r = 9) =>
-    L.circleMarker(latlng, { radius: r, color: '#0B0F14', weight: 2, fillColor: color, fillOpacity: 1 });
-
-  function onMapClick(e) {
+  function onGlobeTap({ lat, lon }) {
     if (state.phase !== 'guess') return;
-    const lat = Math.max(-90, Math.min(90, e.latlng.lat));
-    const lon = normLng(e.latlng.lng);
     state.guess = { lat, lon };
-    layers.clearLayers();
-    pin([lat, lon], COLORS.accent).addTo(layers);
+    globe.setGuess(state.guess);
     $('mapHint').hidden = true;
     $('actionBtn').disabled = false;
   }
@@ -322,9 +279,9 @@
     state.pendingHint = null;
     state.hintView = false;
     $('hintBtn').hidden = !r.hint_image;
-    layers.clearLayers();
-    map.invalidateSize();
-    resetView();
+    globe.clear();
+    globe.resize();
+    globe.resetView(startLon(r), state.index > 0);
 
     $('roundLabel').innerHTML = `Round ${state.index + 1} of ${nRounds()} <small>&middot; Where is this?</small>`;
     $('runningScore').textContent = total();
@@ -341,7 +298,7 @@
     btn.textContent = 'Lock in';
     btn.disabled = true;
     renderProgress();
-    setTimeout(() => map.invalidateSize(), 0);
+    setTimeout(() => globe.resize(), 0);
   }
 
   function showReveal(res, round) {
@@ -351,14 +308,6 @@
     $('hintBtn').hidden = true;
     const g = state.guess;
     const a = res.answer;
-    layers.clearLayers();
-    const fp = footprintBounds(a.lat, a.lon, round.footprint_km);
-    L.rectangle(fp, { color: COLORS.line, weight: 1.2, opacity: 0.55, dashArray: '4 3', fill: false, interactive: false }).addTo(layers);
-    L.polyline([[g.lat, g.lon], [a.lat, a.lon]], { color: COLORS.accent, weight: 2, dashArray: '4 5', opacity: 0.9 }).addTo(layers);
-    pin([g.lat, g.lon], COLORS.you, 7).addTo(layers);
-    pin([a.lat, a.lon], COLORS.accent, 9).addTo(layers);
-    const bounds = L.latLngBounds([[g.lat, g.lon], [a.lat, a.lon]]).extend(fp);
-    map.fitBounds(bounds, { padding: [48, 48], maxZoom: 6 });
 
     $('result').hidden = false;
     $('resDist').textContent = `${Math.round(res.distance_km).toLocaleString()} km${res.hint_used ? ' · hint' : ''}`;
@@ -369,7 +318,9 @@
     const btn = $('actionBtn');
     btn.textContent = last ? 'See results' : 'Next round';
     btn.disabled = false;
-    setTimeout(() => map.invalidateSize(), 0);
+    // the result strip just took some height from the globe: re-measure, then frame guess + answer
+    globe.resize();
+    globe.showReveal({ guess: g, answer: a, footprintKm: round.footprint_km });
   }
 
   function showSummary() {
