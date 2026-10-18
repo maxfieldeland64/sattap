@@ -65,7 +65,10 @@ satellites, so no constants needed adjusting. If NOAA changes anything, re-run t
 - Progress is saved in `localStorage` per date, so a reload resumes instead of replaying.
 - The globe has no tile server: it draws Natural Earth 50m land polygons (`web/land.geojson`) and
   country borders (`web/borders.geojson`, built by `tools/make_borders.mjs`; both public domain)
-  over a flat ocean, so there are no labels or API keys. On landscape screens at least 900 px wide
+  over a flat ocean, so there are no API keys. Country names (`web/countries.json`, built by
+  `tools/make_country_labels.mjs`; names follow Natural Earth) show only where they fit inside
+  their country at the current zoom, so zooming in reveals more; the **Aa** button turns them off
+  (remembered on the device). On landscape screens at least 900 px wide
   the image and globe sit side by side; phones and portrait tablets stay stacked.
 
 ## API

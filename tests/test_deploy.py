@@ -114,4 +114,5 @@ def test_publish_ships_the_landing_media(tmp_path, monkeypatch):
     assert (out / "images/landing/2026-10-16.webp").exists()
     assert (out / "images/landing/2026-10-16.jpg").exists()
     assert (out / "index.html").exists() and (out / "play" / "index.html").exists() and (out / "landing.js").exists()
+    assert (out / "countries.json").exists()  # label anchors must pass the public-JSON check too
     assert json.loads((out / "puzzles" / "latest.json").read_text())["landing"]["satellite"] == "GOES-18"

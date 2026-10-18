@@ -6,6 +6,12 @@ All notable changes to SatTap are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **Country names on the globe.** Names appear only where they fit inside their country at the
+  current zoom, biggest first and never overlapping, so zooming in reveals more; they fade near the
+  globe's edge. An **Aa** button turns them off (remembered on the device). Anchors come from
+  `web/countries.json`, built by `tools/make_country_labels.mjs` from Natural Earth.
+
 ### Changed
 - **The pin map is now a 3D globe.** Drag to spin (with momentum), scroll or pinch to zoom toward
   the cursor or fingers, tap to place a pin. North stays up, there are +/-/reset buttons and

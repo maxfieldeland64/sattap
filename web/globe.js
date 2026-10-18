@@ -3,7 +3,8 @@
  * land and border data. Needs d3-array + d3-geo (web/vendor/) loaded first.
  *
  *   const globe = SatTapGlobe.create(canvas, { onTap({lat, lon}), colors });
- *   globe.setData({ land, borders });
+ *   globe.setData({ land, borders, countries });   // countries: label anchors (web/countries.json)
+ *   globe.setLabels(true);                      // country names on or off
  *   globe.resetView(-137);                      // centre on a longitude, whole globe in view
  *   globe.setGuess({lat, lon});                 // your pin
  *   globe.showReveal({ guess, answer, footprintKm });
@@ -31,6 +32,8 @@
     land: '#2C4159',
     coast: '#5A7594',
     border: '#6B84A3',
+    label: '#D2DEEB',
+    labelHalo: 'rgba(8, 12, 18, 0.88)',
     graticule: 'rgba(230, 237, 243, 0.06)',
     glow: 'rgba(124, 224, 195, 0.20)',
     accent: '#7CE0C3',
@@ -54,6 +57,8 @@
 
     // ---- data and overlays ----
     let land = null, borders = null;
+    let countries = null; // [{n: name, at: [lon, lat], a: area in steradians}], biggest first
+    let showLabels = true;
     const graticule = d3.geoGraticule().step([30, 30])();
     let guess = null, answer = null, footprint = null;
 
@@ -90,6 +95,48 @@
       ctx.lineWidth = 2;
       ctx.strokeStyle = colors.pinStroke;
       ctx.stroke();
+    }
+
+    // ---- country names ----
+    // Only names that fit inside their own country at this zoom are drawn, biggest countries first,
+    // and a name that would overlap one already placed is skipped. So zooming in reveals more.
+    const widths = new Map();
+    function textWidth(text, size) {
+      const key = size + '|' + text;
+      let v = widths.get(key);
+      if (v === undefined) { v = ctx.measureText(text).width; widths.set(key, v); }
+      return v;
+    }
+
+    function drawLabels(R) {
+      if (!showLabels || !countries) return;
+      const placed = [];
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 3;
+      for (const c of countries) {
+        if (placed.length >= 90) break;
+        const dist = d3.geoDistance(center, c.at);
+        if (dist > 1.35) continue; // about 77 degrees out: too close to the edge to read
+        const fore = Math.cos(dist); // how face-on that part of the globe is
+        const sizePx = Math.sqrt(c.a) * R * fore; // rough width of the country on screen
+        const size = sizePx > 150 ? 13 : 11;
+        ctx.font = `500 ${size}px "Instrument Sans", system-ui, sans-serif`;
+        const tw = textWidth(c.n, size);
+        if (sizePx < tw * 0.9) continue; // would not fit inside the country
+        const xy = projection(c.at);
+        if (!xy || xy[0] < -20 || xy[0] > w + 20 || xy[1] < -10 || xy[1] > h + 10) continue;
+        const x0 = xy[0] - tw / 2 - 3, y0 = xy[1] - size / 2 - 2, bw = tw + 6, bh = size + 4;
+        if (placed.some((p) => x0 < p[0] + p[2] && x0 + bw > p[0] && y0 < p[1] + p[3] && y0 + bh > p[1])) continue;
+        placed.push([x0, y0, bw, bh]);
+        ctx.globalAlpha = clamp((fore - 0.2) / 0.35, 0, 1) * 0.92; // fade toward the edge
+        ctx.strokeStyle = colors.labelHalo;
+        ctx.strokeText(c.n, xy[0], xy[1]);
+        ctx.fillStyle = colors.label;
+        ctx.fillText(c.n, xy[0], xy[1]);
+      }
+      ctx.globalAlpha = 1;
     }
 
     function draw() {
@@ -148,6 +195,8 @@
         ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI);
         ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(230, 237, 243, 0.14)'; ctx.stroke();
       }
+
+      drawLabels(R);
 
       // reveal overlays, then pins on top
       if (footprint) {
@@ -379,8 +428,10 @@
       setData(d) {
         if (d.land !== undefined) land = d.land;
         if (d.borders !== undefined) borders = d.borders;
+        if (d.countries !== undefined) countries = d.countries;
         requestDraw();
       },
+      setLabels(on) { showLabels = !!on; requestDraw(); },
       /** Whole globe in view, centred on `lon` (a satellite's longitude, say). */
       resetView(lon = -100, animate = true) {
         flyTo([normLon(lon), 12], 1, animate ? 650 : 0);
