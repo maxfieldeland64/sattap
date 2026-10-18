@@ -41,7 +41,7 @@ class Candidate:
     src: SourceImage
 
 
-def save_loop(frames: list[Image.Image], dest: Path) -> None:
+def save_loop(frames: list[Image.Image], dest: Path, quality: int = C.LOOP_WEBP_QUALITY) -> None:
     """Write frames as one looping animated WebP, holding on the last frame."""
     durations = [C.LOOP_FRAME_MS] * (len(frames) - 1) + [C.LOOP_FRAME_MS + C.LOOP_HOLD_MS]
     frames[0].save(
@@ -51,7 +51,7 @@ def save_loop(frames: list[Image.Image], dest: Path) -> None:
         append_images=frames[1:],
         duration=durations,
         loop=0,
-        quality=C.LOOP_WEBP_QUALITY,
+        quality=quality,
         method=4,
     )
 
@@ -198,6 +198,16 @@ def build_daily(
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
     public = {**meta, "rounds": public_rounds}
+    # The landing page's disk loop is decoration: if it fails, the puzzle still ships without it.
+    try:
+        from .landing import build_landing
+
+        landing = build_landing(sources, day, data_dir)
+    except Exception as e:  # noqa: BLE001
+        print(f"warning: landing loop not built: {e}")
+        landing = None
+    if landing:
+        public["landing"] = landing
     private = {**meta, "scoring": scoring_params(), "rounds": private_rounds}
     (data_dir / "public" / f"{day.isoformat()}.json").write_text(json.dumps(public, indent=2))
     (data_dir / "private" / f"{day.isoformat()}.json").write_text(json.dumps(private, indent=2))

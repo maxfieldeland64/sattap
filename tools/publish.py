@@ -2,7 +2,7 @@
 
   python tools/publish.py [--date YYYY-MM-DD] [--site-url https://sattap.pages.dev]
 
-Reads   data/public/<date>.json, data/images/<date>/*, data/private/<date>.json, web/
+Reads   data/public/<date>.json, data/images/<date>/*, data/images/landing/<date>.*, data/private/<date>.json, web/
 Writes  dist/              static site for Cloudflare Pages (web app + puzzles + images)
         build/kv.json      answers for Workers KV (NEVER inside dist/)
 
@@ -45,6 +45,12 @@ def asset_paths(puzzle: dict) -> list[str]:
             if r.get(k):
                 out.append(r[k].lstrip("/"))
     return out
+
+
+def landing_paths(puzzle: dict) -> list[str]:
+    """Media for the landing page's disk loop. Only the newest puzzle ships these."""
+    landing = puzzle.get("landing") or {}
+    return [landing[k].lstrip("/") for k in ("image", "loop") if landing.get(k)]
 
 
 def assert_public(puzzle: dict, where: str) -> None:
@@ -142,7 +148,7 @@ def main() -> None:
     shutil.copytree(ROOT / "web", dist)
     (dist / "puzzles").mkdir()
     (dist / "puzzles" / f"{date}.json").write_text(json.dumps(puzzle, separators=(",", ":")))
-    for rel in asset_paths(puzzle):
+    for rel in asset_paths(puzzle) + landing_paths(puzzle):
         src = data / rel
         if not src.exists():
             raise SystemExit(f"Missing media file {src}")

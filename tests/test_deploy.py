@@ -84,3 +84,34 @@ def test_static_puzzle_routes(tmp_path, monkeypatch):
     assert c.get("/puzzles/latest.json").json()["date"] == "2026-10-16"
     assert c.get("/puzzles/2030-01-01.json").status_code == 404
     assert c.get("/puzzles/readme.txt").status_code == 404
+
+
+def test_landing_paths():
+    assert publish.landing_paths({"rounds": []}) == []
+    p = {"landing": {"image": "/images/landing/d.jpg", "loop": "/images/landing/d.webp"}}
+    assert publish.landing_paths(p) == ["images/landing/d.jpg", "images/landing/d.webp"]
+    assert publish.landing_paths({"landing": {"image": "/images/landing/d.jpg", "loop": None}}) == ["images/landing/d.jpg"]
+
+
+def test_publish_ships_the_landing_media(tmp_path, monkeypatch):
+    data = tmp_path / "data"
+    for d in ("public", "private", "images/2026-10-16", "images/landing"):
+        (data / d).mkdir(parents=True)
+    puzzle = {
+        "date": "2026-10-16",
+        "rounds": [{"round": 1, "image": "/images/2026-10-16/r1.jpg", "hint_image": None, "loop": None, "hint_loop": None}],
+        "landing": {"satellite": "GOES-18", "image": "/images/landing/2026-10-16.jpg", "loop": "/images/landing/2026-10-16.webp", "frame_times": []},
+    }
+    private = {"date": "2026-10-16", "scoring": {}, "rounds": [{"round": 1, "lat": 1.0, "lon": 2.0}]}
+    (data / "public" / "2026-10-16.json").write_text(json.dumps(puzzle))
+    (data / "private" / "2026-10-16.json").write_text(json.dumps(private))
+    for rel in ("images/2026-10-16/r1.jpg", "images/landing/2026-10-16.jpg", "images/landing/2026-10-16.webp"):
+        (data / rel).write_bytes(b"x")
+
+    out = tmp_path / "dist"
+    monkeypatch.setattr("sys.argv", ["publish", "--data", str(data), "--out", str(out), "--kv-out", str(tmp_path / "kv.json")])
+    publish.main()
+    assert (out / "images/landing/2026-10-16.webp").exists()
+    assert (out / "images/landing/2026-10-16.jpg").exists()
+    assert (out / "index.html").exists() and (out / "play" / "index.html").exists() and (out / "landing.js").exists()
+    assert json.loads((out / "puzzles" / "latest.json").read_text())["landing"]["satellite"] == "GOES-18"

@@ -6,7 +6,14 @@ All notable changes to SatTap are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- The game moved from `/` to `/play/`. The SatTap name in the game's header links home.
+
 ### Added
+- **Landing page** at `/` with a looping full-disk GOES-West view (the last hour, shrunk to 720 px;
+  a still for people who prefer reduced motion), today's top 10 and your own rank, and a button
+  into the game that reads "Start today's challenge", "Continue" or "See your result". The loop is
+  built with the daily puzzle and ships in its JSON as `landing`.
 - **Global daily leaderboard.** A shared board for everyone (hint and no-hint players together; the
   0.7 hint multiplier already evens things out), ordered by total, then fewer hints, then who
   finished first. Players are anonymous: a random id in the browser and a server-assigned name such

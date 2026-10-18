@@ -47,7 +47,13 @@ satellites, so no constants needed adjusting. If NOAA changes anything, re-run t
 `uvicorn sattap.api:app --reload` also serves a small mobile-first web app at
 `http://127.0.0.1:8000/` (vanilla JS + Leaflet, no build step, files in `web/`).
 
-- Loads the current game day's puzzle (rolls over at 18:00 UTC), or the latest built one if it
+- `/` is the landing page: a looping full-disk GOES-West view, today's leaderboard, and a button
+  into the game (it reads "Continue" or "See your result" once you have started or finished).
+  The loop is built by the daily `build` from the same cached frames as the puzzle
+  (`sattap/landing.py`). The leaderboard section hides itself where `/api/leaderboard` is not
+  available (the local FastAPI server).
+- `/play/` is the game itself. It
+  loads the current game day's puzzle (rolls over at 18:00 UTC), or the latest built one if it
   does not exist yet (`?date=YYYY-MM-DD` loads a specific day).
 - Tap the map to place a pin, **Lock in** scores it through `/api/guess`, the reveal shows
   distance, score, and the crop footprint, and a summary screen offers a copy-able result.
