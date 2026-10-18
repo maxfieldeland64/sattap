@@ -199,6 +199,24 @@
       .then((r) => r.json())
       .then((data) => globe.setData({ borders: data }))
       .catch(() => { /* borders are a nicety */ });
+    fetch('/countries.json')
+      .then((r) => r.json())
+      .then((data) => globe.setData({ countries: data }))
+      .catch(() => { /* names are a nicety */ });
+    // country names: on by default, and the choice is remembered on this device
+    const LABELS_KEY = 'sattap:labels';
+    let labelsOn = true;
+    try { labelsOn = localStorage.getItem(LABELS_KEY) !== '0'; } catch { /* private mode etc. */ }
+    const applyLabels = () => {
+      globe.setLabels(labelsOn);
+      $('labelBtn').setAttribute('aria-pressed', String(labelsOn));
+    };
+    applyLabels();
+    $('labelBtn').addEventListener('click', () => {
+      labelsOn = !labelsOn;
+      try { localStorage.setItem(LABELS_KEY, labelsOn ? '1' : '0'); } catch { /* ignore */ }
+      applyLabels();
+    });
     $('zoomIn').addEventListener('click', () => globe.zoomBy(1.7));
     $('zoomOut').addEventListener('click', () => globe.zoomBy(1 / 1.7));
     $('zoomReset').addEventListener('click', () => {
