@@ -4,88 +4,49 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
+<meta name="description" content="A daily game: five crops of real GOES satellite imagery. Where on Earth is this?">
 <title>SatTap</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/landing.css">
 </head>
-<body>
-<main id="app">
-  <header id="top">
-    <div class="row">
-      <div class="brand">SatTap</div>
-      <div id="roundLabel" class="round">Loading…</div>
-      <div id="runningScore" class="mono score-mini" aria-label="Total score">0</div>
+<body class="landing">
+<main class="home">
+  <section class="hero" aria-label="GOES-West full disk">
+    <div class="disk" id="disk">
+      <img id="diskImg" alt="Looping satellite animation of the Earth as seen by GOES-West: the Pacific Ocean and the Americas." width="720" height="720" hidden>
+      <div class="disk-fallback" aria-hidden="true"></div>
     </div>
-    <div id="progress" class="progress" aria-hidden="true"></div>
-    <div id="notice" class="notice" hidden></div>
-  </header>
-
-  <section id="crop" class="crop">
-    <button id="cropBtn" class="crop-btn" aria-label="Enlarge satellite image">
-      <img id="cropImg" alt="Satellite image. Where is this?">
-    </button>
     <div class="chips">
-      <span id="chipBand" class="chip mono"></span>
-      <span id="chipSat" class="chip mono"></span>
+      <span class="chip mono" id="chipSat">GOES-West</span>
+      <span class="chip mono" id="chipTime"></span>
     </div>
-    <div id="hintBox" class="hint-box" hidden aria-hidden="true"></div>
-    <button id="hintBtn" class="chip hint-btn" type="button">Hint · wider view (−30%)</button>
-    <span id="chipMeta" class="chip chip-meta mono"></span>
   </section>
 
-  <section id="mapWrap" class="map-wrap">
-    <div id="map" aria-label="World map. Tap to place your guess."></div>
-    <div id="mapHint" class="map-hint">Tap the map to place your pin</div>
-  </section>
-
-  <section id="result" class="result" hidden aria-live="polite">
-    <div>
-      <div class="label mono">Distance</div>
-      <div id="resDist" class="big">0 km</div>
+  <section class="panel">
+    <div class="brand-row">
+      <span class="brand-mark">SatTap</span>
+      <span class="mono dim" id="dateLabel"></span>
     </div>
-    <div class="right">
-      <div class="label mono">Score</div>
-      <div class="big accent"><span id="resScore">0</span><span class="of"> / 100</span></div>
-    </div>
-    <p id="resQuip" class="quip" aria-live="polite"></p>
-  </section>
+    <h1>Where on Earth is this?</h1>
+    <p class="lede">Five crops of real satellite imagery. Drop a pin, get scored on distance. A new puzzle every day.</p>
 
-  <footer id="bar" class="bar">
-    <button id="actionBtn" class="primary" disabled>Lock in</button>
-  </footer>
-</main>
+    <a id="startBtn" class="cta" href="/play/">Start today's challenge</a>
+    <p id="startNote" class="start-note mono"></p>
 
-<div id="lightbox" class="lightbox" hidden>
-  <button id="lightboxClose" class="lightbox-close" aria-label="Close">&times;</button>
-  <div class="lightbox-scroll"><img id="lightboxImg" alt="Enlarged satellite image"></div>
-</div>
-
-<div id="summary" class="summary" hidden>
-  <div class="summary-card">
-    <div class="label mono" id="sumDate"></div>
-    <div class="total"><span id="sumTotal">0</span><span class="of"> / <span id="sumMax">500</span></span></div>
-    <p id="sumQuip" class="quip quip-sum"></p>
-    <ol id="sumList" class="sum-list"></ol>
-    <div class="stats" aria-label="Your stats on this device">
-      <div><strong id="stStreak">0</strong><span>day streak</span></div>
-      <div><strong id="stGames">0</strong><span>played</span></div>
-      <div><strong id="stAvg">0</strong><span>avg</span></div>
-      <div><strong id="stBest">0</strong><span>best</span></div>
-    </div>
-    <section id="board" class="board" hidden>
-      <div class="label mono">Today's leaderboard</div>
-      <div id="boardYou" class="board-you"></div>
+    <section class="board" id="board" aria-live="polite">
+      <div class="board-head">
+        <h2 class="label mono">Today's leaderboard</h2>
+        <span class="mono dim" id="boardCount"></span>
+      </div>
       <ol id="boardList" class="board-list"></ol>
-      <div class="board-foot">Playing as <span id="boardName"></span> <button id="rerollBtn" class="link" type="button">new name</button></div>
+      <p id="boardEmpty" class="board-empty" hidden></p>
     </section>
-    <button id="copyBtn" class="primary">Copy result</button>
-    <button id="reviewBtn" class="ghost">Review rounds</button>
-  </div>
-</div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="/app.js"></script>
+    <p class="credit">Imagery: NOAA GOES ABI GeoColor, courtesy of CIRA and NOAA.</p>
+  </section>
+</main>
+<script src="/landing.js"></script>
 </body>
 </html>

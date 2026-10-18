@@ -58,6 +58,10 @@ LOOP_FRAME_MS = 280      # display time per frame
 LOOP_HOLD_MS = 1000      # extra hold on the last frame before it restarts
 LOOP_WEBP_QUALITY = 72
 
+# --- Landing page: full-disk GOES-West loop --------------------------------
+LANDING_SIZE_PX = 720    # the 5424 px disk, shrunk
+LANDING_WEBP_QUALITY = 70
+
 # --- Scoring ---------------------------------------------------------------
 # Guesses within SCORE_FREE_KM of the answer score 100 (about the crop's own radius),
 # then score = round(100 * exp(-(distance_km - SCORE_FREE_KM) / SCORE_SCALE_KM)).
