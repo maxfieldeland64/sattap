@@ -96,3 +96,46 @@ def test_save_loop(tmp_path):
     save_loop(frames, out)
     im = Image.open(out)
     assert im.n_frames == 4 and im.info.get("loop") == 0
+
+
+def test_latest_solar_noon():
+    from datetime import datetime, timezone
+    from sattap.sun import latest_solar_noon
+
+    now = datetime(2026, 10, 19, 17, 5, tzinfo=timezone.utc)
+    east = latest_solar_noon(-75.2, now)  # noon ~17:01 UTC, already happened today
+    assert east.date() == now.date() and east.hour == 17 and east <= now
+    west = latest_solar_noon(-137.0, now)  # noon ~21:08 UTC, not yet today -> yesterday
+    assert west.date() == date(2026, 10, 18) and west.hour == 21
+    assert latest_solar_noon(-137.0, datetime(2026, 10, 19, 22, 0, tzinfo=timezone.utc)).date() == now.date()
+
+
+def _cand(sat, difficulty, lon):
+    from datetime import datetime, timezone
+    from sattap.crops import Crop
+    from sattap.filters import Stats
+    from sattap.puzzle import Candidate, SourceImage
+
+    src = SourceImage(sat, None, datetime(2026, 10, 19, 17, tzinfo=timezone.utc))
+    crop = Crop(sat, 0, 0, 100, lon, 0.0, 800.0)
+    return Candidate(crop, Stats(100, 30, 0.2, 0.5, 1.0, 40, difficulty), None, src)
+
+
+def test_select_rounds_gives_each_satellite_its_minimum():
+    from sattap.puzzle import select_rounds
+
+    # East is plentiful and sits at every difficulty; West has only a few, all hard
+    pool = [_cand("east", i / 40, -170 + i * 4) for i in range(40)]
+    pool += [_cand("west", 0.8 + i * 0.02, 100 + i * 12) for i in range(4)]
+    picked = select_rounds(pool, 5)
+    assert len(picked) == 5
+    assert sum(c.src.sat_key == "west" for c in picked) >= C.MIN_ROUNDS_PER_SAT
+    assert sum(c.src.sat_key == "east" for c in picked) >= C.MIN_ROUNDS_PER_SAT
+    assert [c.stats.difficulty for c in picked] == sorted(c.stats.difficulty for c in picked)
+
+
+def test_select_rounds_single_satellite_unchanged():
+    from sattap.puzzle import select_rounds
+
+    pool = [_cand("east", i / 40, -170 + i * 8) for i in range(40)]
+    assert len(select_rounds(pool, 5)) == 5

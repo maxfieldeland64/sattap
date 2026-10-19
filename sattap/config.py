@@ -44,12 +44,22 @@ N_ROUNDS = 5
 N_CANDIDATES = 300
 MIN_ANSWER_SEPARATION_KM = 1500.0
 DIFFICULTY_QUANTILES = (0.10, 0.30, 0.50, 0.70, 0.90)
+# Each satellite supplies at least this many of the day's rounds (when both have playable crops).
+MIN_ROUNDS_PER_SAT = 2
 
 # --- Game day --------------------------------------------------------------
 # The puzzle for day D is live from ROLLOVER_UTC_HOUR on D until the same hour on D+1.
 # 18:00 UTC = noon in Denver / 2pm in New York, an hour after the daily build job (17:00 UTC)
 # so a late scheduled run still lands before players roll over. Keep web/app.js in sync.
 ROLLOVER_UTC_HOUR = 18
+
+# --- Capture time ----------------------------------------------------------
+# Real time matters less than good light. Each satellite's frames are taken around local solar
+# noon at its sub-satellite longitude (the latest such moment that has already happened), instead
+# of "now". At the 17:00 UTC build that is today for GOES-East (noon ~17:00 UTC) but yesterday
+# afternoon for GOES-West (noon ~21:08 UTC), whose disk is mostly morning light at build time.
+SOLAR_NOON_CAPTURE = True
+CAPTURE_AFTER_NOON_MIN = 25  # the loop ends this long after noon
 
 # --- Loop (animated WebP) --------------------------------------------------
 LOOP_FRAMES = 6          # frames per loop, ending at the puzzle frame
