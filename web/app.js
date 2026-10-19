@@ -185,7 +185,7 @@
   // tap to drop a pin. Land polygons (Natural Earth, bundled in /land.geojson) and country borders
   // are drawn over a flat ocean; there are no labels, roads or API keys.
   // Each round opens centred under the satellite that took the picture (the chip already names it).
-  const SAT_LON = { 'GOES-18': -137.0, 'GOES-19': -75.2 }; // sub-satellite longitudes, as in sattap/config.py
+  const SAT_LON = { 'GOES-18': -137.0, 'GOES-19': -75.2, 'Meteosat-12': 0.0 }; // sub-satellite longitudes, as in sattap/config.py
   const startLon = (round) => (SAT_LON[round.satellite] !== undefined ? SAT_LON[round.satellite] : -100);
 
   function initMap() {

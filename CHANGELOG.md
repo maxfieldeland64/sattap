@@ -6,6 +6,12 @@ All notable changes to SatTap are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **Meteosat-12 (0°) as a third satellite**, covering Europe, Africa and the eastern Atlantic.
+  Frames come from EUMETSAT's public EUMETView WMS (no account or key), in the same geostationary
+  projection as GOES. Each satellite still contributes at least one round; a source that is down is
+  skipped instead of failing the build.
+
 ### Changed
 - **Both satellites in every puzzle.** Each satellite now gets its own share of candidate crops
   and at least 2 of the 5 rounds (`MIN_ROUNDS_PER_SAT`); before, GOES-East supplied about 85% of

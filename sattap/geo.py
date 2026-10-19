@@ -1,4 +1,4 @@
-"""Geostationary fixed-grid <-> lon/lat conversion for GOES ABI full-disk images."""
+"""Geostationary fixed-grid <-> lon/lat conversion for full-disk images (GOES ABI, Meteosat FCI)."""
 from __future__ import annotations
 
 import math
@@ -23,10 +23,11 @@ def haversine_km(lon1, lat1, lon2, lat2):
 class FullDiskGrid:
     """Maps pixel (col, row) of a square full-disk image to lon/lat and back.
 
-    The image is assumed to span the ABI full-disk fixed grid, so pixel centers run
-    from -FD_HALF_EXTENT_RAD to +FD_HALF_EXTENT_RAD in both axes, with row 0 at the
-    north edge. This is an assumption about NOAA's rendered JPEGs; validate with
-    `python -m sattap.cli check-geo` against a known landmark.
+    GOES (source "star"): the image is assumed to span the ABI full-disk fixed grid, so pixel
+    centers run from -FD_HALF_EXTENT_RAD to +FD_HALF_EXTENT_RAD in both axes, with row 0 at the
+    north edge. Meteosat (source "eumetview"): the WMS image covers +-EUMETVIEW_HALF_EXTENT_M
+    metres of the projection around the sub-satellite point. Both are assumptions about rendered
+    JPEGs; validate with `python -m sattap.cli check-geo` against a known landmark.
     """
 
     def __init__(self, sat_key: str, size: int):
@@ -35,10 +36,16 @@ class FullDiskGrid:
         self.sat_name = sat["name"]
         self.lon0 = sat["lon0"]
         self.size = int(size)
-        self.step = 2 * C.FD_HALF_EXTENT_RAD / (self.size - 1)
+        # scan angle (radians) of pixel centre x = x0 + col * step; y = -x0 - row * step
+        if sat.get("source") == "eumetview":
+            self.step = 2 * C.EUMETVIEW_HALF_EXTENT_M / C.PERSPECTIVE_HEIGHT_M / self.size
+            self.x0 = -C.EUMETVIEW_HALF_EXTENT_M / C.PERSPECTIVE_HEIGHT_M + self.step / 2
+        else:
+            self.step = 2 * C.FD_HALF_EXTENT_RAD / (self.size - 1)
+            self.x0 = -C.FD_HALF_EXTENT_RAD
         crs_geos = CRS.from_proj4(
             f"+proj=geos +h={C.PERSPECTIVE_HEIGHT_M} +lon_0={self.lon0} "
-            f"+sweep=x +a={C.SEMI_MAJOR_M} +b={C.SEMI_MINOR_M} +units=m +no_defs"
+            f"+sweep={sat.get('sweep', 'x')} +a={C.SEMI_MAJOR_M} +b={C.SEMI_MINOR_M} +units=m +no_defs"
         )
         self._fwd = Transformer.from_crs(crs_geos, CRS.from_epsg(4326), always_xy=True)
         self._inv = Transformer.from_crs(CRS.from_epsg(4326), crs_geos, always_xy=True)
@@ -47,8 +54,8 @@ class FullDiskGrid:
     def scan_angles(self, col, row):
         col = np.asarray(col, dtype=float)
         row = np.asarray(row, dtype=float)
-        x = -C.FD_HALF_EXTENT_RAD + col * self.step
-        y = C.FD_HALF_EXTENT_RAD - row * self.step
+        x = self.x0 + col * self.step
+        y = -self.x0 - row * self.step
         return x, y
 
     def radial_frac(self, col, row):
@@ -70,8 +77,8 @@ class FullDiskGrid:
         x_m, y_m = self._inv.transform(lon, lat)
         x = np.asarray(x_m, dtype=float) / C.PERSPECTIVE_HEIGHT_M
         y = np.asarray(y_m, dtype=float) / C.PERSPECTIVE_HEIGHT_M
-        col = (x + C.FD_HALF_EXTENT_RAD) / self.step
-        row = (C.FD_HALF_EXTENT_RAD - y) / self.step
+        col = (x - self.x0) / self.step
+        row = (-self.x0 - y) / self.step
         if np.ndim(col) == 0:
             return float(col), float(row)
         return col, row
