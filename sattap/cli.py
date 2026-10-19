@@ -64,9 +64,23 @@ def _cached_sources(cache_dir: Path, at: datetime | None = None) -> list[SourceI
 def cmd_fetch(args) -> None:
     from .sources import fetch_loop
 
+    from .sun import latest_solar_noon
+
     cache = Path(args.data) / "cache"
+    explicit = _parse_at(args.at)
+    now = datetime.now(timezone.utc)
     for key in ("east", "west"):
-        frames = fetch_loop(key, cache, args.frames, _parse_at(args.at))
+        at = explicit
+        if at is None and C.SOLAR_NOON_CAPTURE:
+            noon = latest_solar_noon(C.SATELLITES[key]["lon0"], now)
+            at = min(noon + timedelta(minutes=C.CAPTURE_AFTER_NOON_MIN), now)
+        try:
+            frames = fetch_loop(key, cache, args.frames, at)
+        except RuntimeError as e:
+            if explicit is not None or at is None:
+                raise
+            print(f"{key}: no frames near local noon ({e}); using the newest instead")
+            frames = fetch_loop(key, cache, args.frames, None)
         print(f"{key}: {len(frames)} frames, {frames[0].observed_at:%H:%M} to {frames[-1].observed_at:%H:%M} UTC")
         for f in frames:
             print(f"  {f.path}")

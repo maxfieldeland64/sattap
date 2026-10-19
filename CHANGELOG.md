@@ -6,6 +6,16 @@ All notable changes to SatTap are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- **Both satellites in every puzzle.** Each satellite now gets its own share of candidate crops
+  and at least 2 of the 5 rounds (`MIN_ROUNDS_PER_SAT`); before, GOES-East supplied about 85% of
+  rounds because the West disk is mostly ocean and morning light at build time. The build logs
+  playable counts per satellite.
+- **Frames come from around local solar noon** at each satellite's longitude instead of "now"
+  (`SOLAR_NOON_CAPTURE`), so crops are sunny. At the 17:00 UTC build that is today for GOES-East
+  and yesterday afternoon for GOES-West. Falls back to the newest frame if the CDN no longer has
+  those. `fetch --at` still overrides.
+
 ### Added
 - **MapTap-style share card.** "Copy result" now gives the site link and date, one score plus a space/weather/shame emoji per round (🛰️ 🚀 🌍 ☀️ ⛅ ☁️ 🌧️ ⛈️ 🤡 💀, a 💡 after hinted rounds) and `Final score: N`.
 - **Country names on the globe.** Names appear only where they fit inside their country at the

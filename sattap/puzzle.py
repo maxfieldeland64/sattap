@@ -57,26 +57,32 @@ def save_loop(frames: list[Image.Image], dest: Path, quality: int = C.LOOP_WEBP_
 
 
 def collect_candidates(sources: list[SourceImage], n: int, rng: np.random.Generator) -> list[Candidate]:
+    """About n playable crops, an equal share from each satellite.
+
+    Each satellite gets its own attempt budget, so one whose disk is mostly ocean or shadow at
+    this hour (usually GOES-West) is not crowded out by the other.
+    """
     images, grids = {}, {}
     for s in sources:
         img = Image.open(s.path).convert("RGB")
         images[s.sat_key] = img
         grids[s.sat_key] = FullDiskGrid(s.sat_key, img.width)
     by_key = {s.sat_key: s for s in sources}
-    keys = list(by_key)
+    share = -(-n // len(by_key))  # ceiling
     out: list[Candidate] = []
-    attempts = 0
-    while len(out) < n and attempts < n * 6:
-        attempts += 1
-        key = keys[int(rng.integers(len(keys)))]
-        grid = grids[key]
-        crop = sample_crop(grid, rng)
-        if crop is None:
-            continue
-        tile = cut(images[key], crop)
-        stats = compute_stats(grid, crop, tile, by_key[key].observed_at)
-        if is_playable(stats):
-            out.append(Candidate(crop, stats, tile, by_key[key]))
+    for key in by_key:
+        got = attempts = 0
+        while got < share and attempts < share * 6:
+            attempts += 1
+            crop = sample_crop(grids[key], rng)
+            if crop is None:
+                continue
+            tile = cut(images[key], crop)
+            stats = compute_stats(grids[key], crop, tile, by_key[key].observed_at)
+            if is_playable(stats):
+                out.append(Candidate(crop, stats, tile, by_key[key]))
+                got += 1
+        print(f"candidates {C.SATELLITES[key]['name']}: {got} playable of {attempts} tried")
     return out
 
 
@@ -113,7 +119,42 @@ def select_rounds(cands: list[Candidate], n_rounds: int = C.N_ROUNDS) -> list[Ca
                 break
             if c not in chosen:
                 chosen.append(c)
+    chosen = _ensure_each_satellite(chosen, ordered, n_rounds)
     return sorted(chosen, key=lambda c: c.stats.difficulty)
+
+
+def _ensure_each_satellite(chosen: list[Candidate], pool: list[Candidate], n_rounds: int) -> list[Candidate]:
+    """Swap rounds so every satellite in the pool has at least MIN_ROUNDS_PER_SAT of them.
+
+    The swap replaces a round from the most-represented satellite with the candidate from the
+    short one closest in difficulty (so the ramp barely changes) that keeps answers apart.
+    """
+    keys = sorted({c.src.sat_key for c in pool})
+    if len(keys) < 2:
+        return chosen
+    need = min(C.MIN_ROUNDS_PER_SAT, n_rounds // len(keys))
+    chosen = list(chosen)
+
+    def apart(c: Candidate, others: list[Candidate]) -> bool:
+        return all(haversine_km(c.crop.lon, c.crop.lat, o.crop.lon, o.crop.lat) >= C.MIN_ANSWER_SEPARATION_KM for o in others)
+
+    for key in keys:
+        while sum(c.src.sat_key == key for c in chosen) < need:
+            counts = {k: sum(c.src.sat_key == k for c in chosen) for k in keys}
+            donor = max(counts, key=counts.get)
+            if donor == key or counts[donor] <= need:
+                break
+            best = None
+            for old in (c for c in chosen if c.src.sat_key == donor):
+                rest = [c for c in chosen if c is not old]
+                for new in (c for c in pool if c.src.sat_key == key and c not in chosen):
+                    gap = abs(new.stats.difficulty - old.stats.difficulty)
+                    if (best is None or gap < best[0]) and apart(new, rest):
+                        best = (gap, old, new)
+            if best is None:
+                break
+            chosen[chosen.index(best[1])] = best[2]
+    return chosen
 
 
 def build_daily(
