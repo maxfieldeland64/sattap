@@ -7,6 +7,7 @@ All notable changes to SatTap are recorded here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Landing page lists the satellites** (GOES-West, GOES-East, Meteosat) and the regions they cover, so players know where a crop can be.
 - **Meteosat-12 (0°) as a third satellite**, covering Europe, Africa and the eastern Atlantic.
   Frames come from EUMETSAT's public EUMETView WMS (no account or key), in the same geostationary
   projection as GOES. Each satellite still contributes at least one round; a source that is down is

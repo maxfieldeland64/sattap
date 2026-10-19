@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
-<meta name="description" content="A daily game: five crops of real GOES satellite imagery. Where on Earth is this?">
+<meta name="description" content="A daily game: five crops of real GOES and Meteosat satellite imagery. Where on Earth is this?">
 <title>SatTap</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -34,6 +34,16 @@
 
     <a id="startBtn" class="cta" href="/play/">Start today's challenge</a>
     <p id="startNote" class="start-note mono"></p>
+
+    <section class="sats" aria-labelledby="satsTitle">
+      <h2 id="satsTitle" class="label mono">Where the crops can be</h2>
+      <dl class="sat-list">
+        <div><dt class="mono">GOES-West</dt><dd>The Pacific, Hawaii, and the western Americas</dd></div>
+        <div><dt class="mono">GOES-East</dt><dd>North and South America and the Atlantic</dd></div>
+        <div><dt class="mono">Meteosat</dt><dd>Europe, Africa, the eastern Atlantic and the Middle East</dd></div>
+      </dl>
+      <p class="sat-foot">Every puzzle mixes them. Asia, Australia and the poles are out of view.</p>
+    </section>
 
     <section class="board" id="board" aria-live="polite">
       <div class="board-head">

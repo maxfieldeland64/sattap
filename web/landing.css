@@ -53,6 +53,14 @@ h1 { margin: 0 0 8px; font-size: clamp(30px, 8vw, 40px); line-height: 1.08; font
 .board-list li strong { font-variant-numeric: tabular-nums; }
 .board-empty { margin: 0; padding: 14px 10px; border-radius: 8px; background: #0F1620; color: var(--muted); font-size: 14px; text-align: center; }
 .board-empty[hidden] { display: none; }
+.sats { margin: 20px 0 4px; }
+.sats .label { margin: 0 0 8px; }
+.sat-list { margin: 0; display: grid; gap: 6px; }
+.sat-list > div { display: grid; grid-template-columns: 92px 1fr; gap: 12px; align-items: baseline; font-size: 13px; line-height: 1.4; }
+.sat-list dt { color: var(--accent); font-size: 12px; }
+.sat-list dd { margin: 0; color: var(--text); }
+.sat-foot { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+
 .credit { margin: 4px 0 0; font-size: 11px; color: var(--muted); text-align: center; }
 
 @media (prefers-reduced-motion: no-preference) {
