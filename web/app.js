@@ -364,14 +364,23 @@
     renderBoard();
   }
 
+  // Share card, MapTap style:
+  //   sattap.pages.dev October 19
+  //   71🌍 99🛰️ 80🌍 72🌍 85🚀
+  //   Final score: 401
+  // One emoji per round from the guess itself (hints don't change it); a hinted round gets a 💡 after it.
+  const SHARE_EMOJI = [
+    [97, '🛰️'], [85, '🚀'], [70, '🌍'], [55, '☀️'], [40, '⛅'],
+    [30, '☁️'], [20, '🌧️'], [10, '⛈️'], [3, '🤡'], [0, '💀'],
+  ];
+  const emojiFor = (raw) => SHARE_EMOJI.find(([min]) => raw >= min)[1];
+  function shareDate() {
+    const d = new Date(`${state.puzzle.date}T00:00:00Z`);
+    return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: 'UTC' });
+  }
   function shareText() {
-    return [
-      `SatTap ${state.puzzle.date}`,
-      state.results.map((r) => `${r.score}${r.hint_used ? '*' : ''}`).join(' · '),
-      state.results.some((r) => r.hint_used) ? '* used a hint' : null,
-      `Total ${total()}/${nRounds() * 100}`,
-      window.__lastRank ? `Rank ${window.__lastRank}` : null,
-    ].filter(Boolean).join('\n');
+    const cells = state.results.map((r) => `${r.score}${emojiFor(rawScore(r.score, r.hint_used))}${r.hint_used ? '💡' : ''}`);
+    return [`${location.host} ${shareDate()}`, cells.join(' '), `Final score: ${total()}`].join('\n');
   }
 
   // ---------- actions ----------

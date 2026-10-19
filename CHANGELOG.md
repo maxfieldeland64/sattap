@@ -7,6 +7,7 @@ All notable changes to SatTap are recorded here. The format follows
 ## [Unreleased]
 
 ### Added
+- **MapTap-style share card.** "Copy result" now gives the site link and date, one score plus a space/weather/shame emoji per round (🛰️ 🚀 🌍 ☀️ ⛅ ☁️ 🌧️ ⛈️ 🤡 💀, a 💡 after hinted rounds) and `Final score: N`.
 - **Country names on the globe.** Names appear only where they fit inside their country at the
   current zoom, biggest first and never overlapping, so zooming in reveals more; they fade near the
   globe's edge. An **Aa** button turns them off (remembered on the device). Anchors come from
