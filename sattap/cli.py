@@ -1,6 +1,6 @@
 """Command line entry point.
 
-  python -m sattap.cli fetch [--frames 6]          # download the last hour of GeoColor (East + West)
+  python -m sattap.cli fetch [--frames 6]          # download the last hour of GeoColor (East, West, Meteosat)
   python -m sattap.cli build [--date YYYY-MM-DD]   # build a daily puzzle from cached images
   python -m sattap.cli synth                       # make fake full-disk images (offline dev)
   python -m sattap.cli check-geo                   # sanity-check geometry numbers
@@ -36,12 +36,12 @@ def _parse_at(text: str | None) -> datetime | None:
 
 def _cached_sources(cache_dir: Path, at: datetime | None = None) -> list[SourceImage]:
     """Newest cached image per satellite (at or before `at`), observed_at parsed from the filename."""
-    from .sources import _NAME_RE
+    from .sources import CACHE_NAME_RE
 
     best: dict[str, SourceImage] = {}
     seen: dict[str, dict[datetime, Path]] = {}
     for p in sorted(cache_dir.glob("*.jpg")):
-        m = _NAME_RE.fullmatch(p.name)
+        m = CACHE_NAME_RE.fullmatch(p.name)
         if not m:
             continue
         stamp, sat_slug, w, _ = m.groups()
@@ -69,21 +69,29 @@ def cmd_fetch(args) -> None:
     cache = Path(args.data) / "cache"
     explicit = _parse_at(args.at)
     now = datetime.now(timezone.utc)
-    for key in ("east", "west"):
+    failed: list[str] = []
+    for key in C.SATELLITES:
         at = explicit
         if at is None and C.SOLAR_NOON_CAPTURE:
             noon = latest_solar_noon(C.SATELLITES[key]["lon0"], now)
             at = min(noon + timedelta(minutes=C.CAPTURE_AFTER_NOON_MIN), now)
         try:
-            frames = fetch_loop(key, cache, args.frames, at)
-        except RuntimeError as e:
-            if explicit is not None or at is None:
-                raise
-            print(f"{key}: no frames near local noon ({e}); using the newest instead")
-            frames = fetch_loop(key, cache, args.frames, None)
+            try:
+                frames = fetch_loop(key, cache, args.frames, at)
+            except RuntimeError as e:
+                if explicit is not None or at is None:
+                    raise
+                print(f"{key}: no frames near local noon ({e}); using the newest instead")
+                frames = fetch_loop(key, cache, args.frames, None)
+        except Exception as e:  # noqa: BLE001  one source being down should not cancel the day's puzzle
+            failed.append(key)
+            print(f"{key}: FAILED, building without it: {e}")
+            continue
         print(f"{key}: {len(frames)} frames, {frames[0].observed_at:%H:%M} to {frames[-1].observed_at:%H:%M} UTC")
         for f in frames:
             print(f"  {f.path}")
+    if len(failed) == len(C.SATELLITES):
+        raise SystemExit("No satellite could be fetched.")
 
 
 def cmd_build(args) -> None:
@@ -106,28 +114,28 @@ def cmd_build(args) -> None:
 
 
 def cmd_synth(args) -> None:
+    from .sources import cache_name
     from .synth import make_full_disk
 
     cache = Path(args.data) / "cache"
     now = datetime.now(timezone.utc)
     stamp = now.strftime("%Y%j%H%M")
-    for i, key in enumerate(("east", "west")):
-        slug = C.SATELLITES[key]["slug"]
-        out = cache / f"{stamp}_{slug}-ABI-FD-GEOCOLOR-{args.size}x{args.size}.jpg"
+    for i, key in enumerate(C.SATELLITES):
+        out = cache / cache_name(key, now, args.size)
         make_full_disk(key, args.size, out, seed=args.seed + i)
         print("wrote", out)
 
 
 def cmd_check_geo(_args) -> None:
-    for key in ("east", "west"):
+    for key in C.SATELLITES:
         g = FullDiskGrid(key, C.FD_SIZE_2KM)
         mid = (g.size - 1) / 2
         lon, lat = g.pixel_to_lonlat(mid, mid)
         print(f"{key}: image center -> lon {lon:.2f}, lat {lat:.2f} (expect sub-satellite point {g.lon0}, 0)")
-        # Landmark check: Baja California tip (~-109.9, 22.9) from GOES-West,
-        # Florida Keys (~-81.8, 24.6) from GOES-East. Open the full-disk JPEG at the
-        # printed pixel and confirm it is on that landmark.
-        lm = (-109.9, 22.9) if key == "west" else (-81.8, 24.6)
+        # Landmark check: Baja California tip (~-109.9, 22.9) from GOES-West, Florida Keys
+        # (~-81.8, 24.6) from GOES-East, Cape Verde's Dakar peninsula (~-17.5, 14.7) from
+        # Meteosat. Open the full-disk JPEG at the printed pixel and confirm it is on that landmark.
+        lm = {"west": (-109.9, 22.9), "east": (-81.8, 24.6), "meteo": (-17.5, 14.7)}[key]
         c, r = g.lonlat_to_pixel(*lm)
         print(f"  landmark {lm} -> pixel col {c:.0f}, row {r:.0f}")
 

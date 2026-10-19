@@ -71,7 +71,7 @@ jobs:
           python -m pytest -q tests
           npm test
 
-      - name: Fetch GOES frames (last hour, East + West)
+      - name: Fetch satellite frames (GOES-East, GOES-West, Meteosat)
         run: |
           args=()
           [ -n "$IN_AT" ] && args+=(--at "$IN_AT")

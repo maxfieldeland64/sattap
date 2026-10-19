@@ -1,6 +1,6 @@
 # SatTap POC backend
 
-Turns CIRA GeoColor full-disk imagery from GOES-East (GOES-19) and GOES-West (GOES-18)
+Turns GeoColor full-disk imagery from GOES-East (GOES-19), GOES-West (GOES-18) and Meteosat-12 (0°)
 into a daily "Where is this?" puzzle: 5 cropped satellite tiles with known answer
 coordinates, plus a tiny API to serve them and score guesses.
 
@@ -40,7 +40,7 @@ satellites, so no constants needed adjusting. If NOAA changes anything, re-run t
    (the JPEGs may be padded or slightly cropped).
 2. Confirm the CDN directory listing still matches the filename regex in
    `sattap/sources.py` (`YYYYDDDHHMM_GOES19-ABI-FD-GEOCOLOR-5424x5424.jpg`).
-3. Confirm sub-satellite longitudes in `sattap/config.py` (GOES-East 75.2 W, GOES-West 137.0 W).
+3. Confirm sub-satellite longitudes in `sattap/config.py` (GOES-East 75.2 W, GOES-West 137.0 W, Meteosat 0).
 
 ## Web app
 
@@ -96,7 +96,7 @@ Local pieces: `npm test` (Function tests), `tools/publish.py` (assembles `dist/`
 sattap/
   config.py    constants and tunables (crop sizes, filter thresholds, score scale)
   geo.py       fixed-grid <-> lon/lat, haversine
-  sources.py   CIRA GeoColor fetch from NOAA STAR CDN
+  sources.py   GeoColor fetch: GOES from the NOAA STAR CDN, Meteosat from EUMETSAT EUMETView
   crops.py     candidate crop sampling
   filters.py   playability filter + difficulty heuristic (uses a real land mask)
   puzzle.py    builds the daily puzzle (5 rounds across the difficulty range)
@@ -160,3 +160,19 @@ the filters.
 - Night-side crops are excluded by brightness rather than handled.
 - Scoring answers are not rate limited, so a player can re-guess a round via the API.
 - Guess requests are not rate limited (see docs/DEPLOY.md for the Cloudflare-side fix).
+
+
+## Meteosat (Europe, Africa, the Atlantic)
+
+Meteosat-12 (MTG-I1, 0 degrees) comes from EUMETSAT's public **EUMETView** WMS
+(`mtg_fd:rgb_geocolour`), with no account or API key. One GetMap request returns the whole disk in
+the geostationary projection, so it goes through the same crop and scoring code as GOES.
+
+- Frames are 4608 px (about 2.4 km per pixel). The service returns an empty image for bigger
+  requests (5600 px, the native 2 km size), so this is a little coarser than GOES.
+- A request for a time after the layer's newest frame comes back empty, so `sources.py` reads the
+  newest time from GetCapabilities and never asks past it. Archive back to 2024-09 is available.
+- Geometry (`geo.py`) was checked by overlaying Natural Earth coastlines on a real frame: they
+  line up to a few pixels. Re-run `python -m sattap.cli check-geo` if EUMETSAT changes the layer.
+- If EUMETView is down, `fetch` logs it and the puzzle builds from the satellites that worked.
+- EUMETView imagery is credited "(c) EUMETSAT" on the landing page.

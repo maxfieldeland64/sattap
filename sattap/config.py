@@ -1,12 +1,14 @@
 """Tunable constants for the SatTap POC backend."""
 from __future__ import annotations
 
-# --- Satellites (GOES-East / GOES-West) -----------------------------------
-# lon0 is the sub-satellite longitude. Verify against NOAA if the operational
-# satellites change.
+# --- Satellites (GOES-East / GOES-West / Meteosat) -------------------------
+# lon0 is the sub-satellite longitude. Verify against NOAA / EUMETSAT if the operational
+# satellites change. `source` picks the fetcher: "star" = NOAA STAR CDN (GOES ABI GeoColor),
+# "eumetview" = EUMETSAT's public EUMETView WMS (MTG FCI GeoColour, no account needed).
 SATELLITES = {
-    "east": {"name": "GOES-19", "slug": "GOES19", "lon0": -75.2},
-    "west": {"name": "GOES-18", "slug": "GOES18", "lon0": -137.0},
+    "east": {"name": "GOES-19", "slug": "GOES19", "lon0": -75.2, "source": "star"},
+    "west": {"name": "GOES-18", "slug": "GOES18", "lon0": -137.0, "source": "star"},
+    "meteo": {"name": "Meteosat-12", "slug": "MTG0", "lon0": 0.0, "source": "eumetview", "sweep": "y"},
 }
 
 # --- ABI fixed-grid geometry (full disk, 2 km, 5424 x 5424) ---------------
@@ -21,6 +23,18 @@ EARTH_LIMB_RAD = 0.1512  # conservative angular radius of the Earth disk
 STAR_CDN = "https://cdn.star.nesdis.noaa.gov"
 GEOCOLOR_SIZE = 5424  # which pre-rendered size to pull
 HTTP_TIMEOUT_S = 60
+
+# --- Source (MTG FCI GeoColour via EUMETSAT EUMETView WMS) -----------------
+# One GetMap request returns the whole disk in the geostationary projection. The service
+# refuses very large images (5600 px, the native 2 km size, comes back empty; 4608 works), so
+# frames are ~2.4 km/pixel, a little coarser than the GOES ones. Pixel scale is relative to
+# +-EUMETVIEW_HALF_EXTENT_M metres around the sub-satellite point.
+EUMETVIEW_WMS = "https://view.eumetsat.int/geoserver/wms"
+EUMETVIEW_LAYER = "mtg_fd:rgb_geocolour"
+EUMETVIEW_SIZE_PX = 4608
+EUMETVIEW_HALF_EXTENT_M = 5_600_000.0
+EUMETVIEW_STEP_MIN = 10
+EUMETVIEW_TIMEOUT_S = 180
 
 # --- Crop sampling ---------------------------------------------------------
 # Half-widths in pixels on the 5424 grid. 200 px ~ 800 km across at nadir.

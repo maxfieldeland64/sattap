@@ -10,7 +10,7 @@ from sattap.scoring import score_for_distance, score_guess
 from sattap.sources import parse_listing
 
 
-@pytest.mark.parametrize("key", ["east", "west"])
+@pytest.mark.parametrize("key", ["east", "west", "meteo"])
 def test_center_is_subsatellite_point(key):
     g = FullDiskGrid(key, C.FD_SIZE_2KM)
     mid = (g.size - 1) / 2
@@ -19,7 +19,7 @@ def test_center_is_subsatellite_point(key):
     assert lat == pytest.approx(0.0, abs=0.01)
 
 
-@pytest.mark.parametrize("key", ["east", "west"])
+@pytest.mark.parametrize("key", ["east", "west", "meteo"])
 def test_roundtrip(key):
     g = FullDiskGrid(key, 1356)
     cols = np.array([300.0, 678.0, 900.0])
@@ -139,3 +139,65 @@ def test_select_rounds_single_satellite_unchanged():
 
     pool = [_cand("east", i / 40, -170 + i * 8) for i in range(40)]
     assert len(select_rounds(pool, 5)) == 5
+
+
+def test_eumetview_grid_matches_the_wms_extent():
+    g = FullDiskGrid("meteo", C.EUMETVIEW_SIZE_PX)
+    # the first and last pixel edges sit at +-EUMETVIEW_HALF_EXTENT_M, centres half a pixel inside
+    x_edge = (g.x0 - g.step / 2) * C.PERSPECTIVE_HEIGHT_M
+    assert x_edge == pytest.approx(-C.EUMETVIEW_HALF_EXTENT_M, abs=1.0)
+    # Gibraltar lands where we measured it against the real image (col ~2112, row ~821 at 4608 px)
+    col, row = g.lonlat_to_pixel(-5.35, 36.14)
+    assert col == pytest.approx(2112, abs=6) and row == pytest.approx(821, abs=6)
+    # limb: the Earth's edge sits at ~0.97 of the half extent, inside the image
+    assert g.radial_frac(0, 0) > 1.0 and g.radial_frac(2303, 2303) < 0.01
+
+
+def test_cache_names_round_trip():
+    from datetime import datetime, timezone
+    from sattap.sources import CACHE_NAME_RE, cache_name
+
+    t = datetime(2026, 10, 19, 12, 20, tzinfo=timezone.utc)
+    for key, slug, inst in (("east", "GOES19", "ABI"), ("meteo", "MTG0", "FCI")):
+        name = cache_name(key, t, 1234)
+        assert name == f"2026292" + "1220" + f"_{slug}-{inst}-FD-GEOCOLOR-1234x1234.jpg"
+        m = CACHE_NAME_RE.fullmatch(name)
+        assert m and m.group(2) == slug and int(m.group(3)) == 1234
+
+
+def test_eumetview_slots_and_request():
+    from datetime import datetime, timezone
+    from sattap.sources import eumetview_params, eumetview_slots
+
+    slots = eumetview_slots(datetime(2026, 10, 19, 12, 27, 31, tzinfo=timezone.utc), 3)
+    assert [f"{t:%H:%M}" for t in slots] == ["12:00", "12:10", "12:20"]
+    q = eumetview_params(slots[-1])
+    assert q["layers"] == C.EUMETVIEW_LAYER and q["time"] == "2026-10-19T12:20:00Z"
+    assert q["bbox"] == "-5600000,-5600000,5600000,5600000" and q["width"] == C.EUMETVIEW_SIZE_PX
+
+
+def test_eumetview_refuses_empty_images(tmp_path, monkeypatch):
+    from datetime import datetime, timezone
+    from sattap import sources
+
+    class Resp:
+        headers = {"content-type": "image/jpeg"}
+        content = b""
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(sources.requests, "get", lambda *a, **k: Resp())
+    with pytest.raises(RuntimeError, match="no image"):
+        sources.eumetview_download("meteo", datetime(2026, 10, 19, 12, 0, tzinfo=timezone.utc), tmp_path)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_select_rounds_three_satellites_each_get_one():
+    from sattap.puzzle import select_rounds
+
+    pool = [_cand("east", i / 60, -170 + i * 5) for i in range(60)]
+    pool += [_cand("west", 0.6 + i * 0.02, 100 + i * 9) for i in range(5)]
+    pool += [_cand("meteo", 0.7 + i * 0.02, -80 + i * 30) for i in range(5)]
+    picked = select_rounds(pool, 5)
+    assert {c.src.sat_key for c in picked} == {"east", "west", "meteo"}
