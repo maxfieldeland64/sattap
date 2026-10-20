@@ -16,6 +16,7 @@ import numpy as np
 from PIL import Image
 
 from . import config as C
+from .b13 import B13Pick, pick_b13_round
 from .crops import Crop, cut, cut_context, sample_crop
 from .filters import Stats, compute_stats, is_playable
 from .geo import FullDiskGrid, haversine_km
@@ -31,6 +32,8 @@ class SourceImage:
     observed_at: datetime
     # earlier frames for the loop, [(observed_at, path)] oldest first, ending with this frame
     loop: list[tuple[datetime, Path]] = field(default_factory=list)
+    # Band 13 frames at the same times (GOES only); empty when the still has no Band 13 image
+    b13_loop: list[tuple[datetime, Path]] = field(default_factory=list)
 
 
 @dataclass
@@ -157,6 +160,81 @@ def _ensure_each_satellite(chosen: list[Candidate], pool: list[Candidate], n_rou
     return chosen
 
 
+def _write_media(frames: list[Image.Image], data_dir: Path, rel_stem: str) -> tuple[str, str | None]:
+    """Save the last frame as a JPEG still and, with more than one frame, the whole run as a
+    looping WebP. Returns (still_rel, loop_rel_or_None), paths relative to data_dir/images."""
+    still_rel = f"{rel_stem}.jpg"
+    frames[-1].save(data_dir / "images" / still_rel, quality=88)
+    loop_rel = None
+    if len(frames) > 1:
+        loop_rel = f"{rel_stem}.webp"
+        save_loop(frames, data_dir / "images" / loop_rel)
+    return still_rel, loop_rel
+
+
+def build_b13_round(pick: B13Pick, i: int, day: Date, data_dir: Path) -> tuple[dict, dict]:
+    """The Band 13 round: Band 13 is the picture, GeoColor is the first hint, the 3x-wider view
+    (of whichever layer is showing) is the second. Returns (public_round, private_round)."""
+    src = pick.src
+    gc_path = dict(src.loop or [(src.observed_at, src.path)])
+    crop = pick.crop
+    b13_close, b13_wide, gc_close, gc_wide, times = [], [], [], [], []
+    ctx_box = None
+    # one full disk at a time (each is ~90 MB decoded)
+    for t, b_path in src.b13_loop:
+        if t not in gc_path:
+            continue
+        for path, close, wide in ((b_path, b13_close, b13_wide), (gc_path[t], gc_close, gc_wide)):
+            img = Image.open(path).convert("RGB")
+            ctx_img, ctx_box = cut_context(img, crop)
+            close.append(cut(img, crop))
+            wide.append(ctx_img)
+            del img
+        times.append(t)
+    stem = f"{day.isoformat()}/r{i}"
+    b_still, b_loop = _write_media(b13_close, data_dir, stem)
+    bw_still, bw_loop = _write_media(b13_wide, data_dir, f"{stem}_ctx")
+    g_still, g_loop = _write_media(gc_close, data_dir, f"{stem}_gc")
+    gw_still, gw_loop = _write_media(gc_wide, data_dir, f"{stem}_gc_ctx")
+
+    def url(rel: str | None) -> str | None:
+        return f"/images/{rel}" if rel else None
+
+    public = {
+        "round": i,
+        "type": "where",
+        "image": url(b_still),
+        "band": "B13 · clean IR",
+        "satellite": C.SATELLITES[pick.sat_key]["name"],
+        "observed_at": src.observed_at.isoformat(),
+        "footprint_km": round(crop.width_km),
+        "hint_image": url(bw_still),
+        "hint_box": ctx_box,
+        "loop": url(b_loop),
+        "hint_loop": url(bw_loop),
+        "frame_times": [t.isoformat() for t in times],
+        # The hint ladder: level 1 shows this other layer, level 2 zooms out. The multipliers are
+        # shown to players ("-15%"); the server applies its own copy (private hint_mults).
+        "ladder": {
+            "band": "GeoColor",
+            "image": url(g_still),
+            "loop": url(g_loop),
+            "hint_image": url(gw_still),
+            "hint_loop": url(gw_loop),
+            "mults": list(C.B13_HINT_MULTS),
+        },
+    }
+    private = {
+        "round": i,
+        "lat": round(crop.lat, 4),
+        "lon": round(crop.lon, 4),
+        "stats": pick.as_dict(),
+        "crop": {"col": crop.col, "row": crop.row, "half": crop.half},
+        "hint_mults": list(C.B13_HINT_MULTS),
+    }
+    return public, private
+
+
 def build_daily(
     day: Date,
     sources: list[SourceImage],
@@ -167,7 +245,16 @@ def build_daily(
 ) -> dict:
     rng = np.random.default_rng(day.toordinal() if seed is None else seed)
     cands = collect_candidates(sources, n_candidates, rng)
-    rounds = select_rounds(cands, n_rounds)
+    # The last round is the Band 13 challenge when a GOES satellite has Band 13 frames and an
+    # open-ocean convective cell turns up; otherwise the day stays n_rounds of "where" rounds.
+    b13_pick: B13Pick | None = None
+    rounds = select_rounds(cands, n_rounds - 1 if n_rounds >= 2 and any(s.b13_loop for s in sources) else n_rounds)
+    if len(rounds) < n_rounds:
+        b13_pick = pick_b13_round(sources, np.random.default_rng((day.toordinal() if seed is None else seed) + 13),
+                                  avoid=[(c.crop.lon, c.crop.lat) for c in rounds])
+        if b13_pick is None:
+            print("no eligible Band 13 cell today; building a normal GeoColor round instead")
+            rounds = select_rounds(cands, n_rounds)
 
     img_dir = data_dir / "images" / day.isoformat()
     img_dir.mkdir(parents=True, exist_ok=True)
@@ -232,6 +319,11 @@ def build_daily(
                 "crop": {"col": c.crop.col, "row": c.crop.row, "half": c.crop.half},
             }
         )
+
+    if b13_pick is not None:
+        pub, priv = build_b13_round(b13_pick, len(public_rounds) + 1, day, data_dir)
+        public_rounds.append(pub)
+        private_rounds.append(priv)
 
     meta = {
         "schema": 1,

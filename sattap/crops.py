@@ -25,6 +25,26 @@ class Crop:
         return (self.col - self.half, self.row - self.half, self.col + self.half, self.row + self.half)
 
 
+def crop_at(grid: FullDiskGrid, col: int, row: int, half: int) -> Crop | None:
+    """The crop centred on pixel (col, row), or None if it leaves the image or nears the limb."""
+    if col - half < 0 or row - half < 0 or col + half > grid.size or row + half > grid.size:
+        return None
+    if grid.radial_frac(col, row) > C.MAX_RADIAL_FRAC:
+        return None
+    corners = [(col + dx, row + dy) for dx in (-half, half) for dy in (-half, half)]
+    if any(grid.radial_frac(c, r) > C.MAX_CORNER_FRAC for c, r in corners):
+        return None
+    lon, lat = grid.pixel_to_lonlat(col, row)
+    if np.isnan(lon) or np.isnan(lat):
+        return None
+    lon_l, lat_l = grid.pixel_to_lonlat(col - half, row)
+    lon_r, lat_r = grid.pixel_to_lonlat(col + half, row)
+    if np.isnan([lon_l, lat_l, lon_r, lat_r]).any():
+        return None
+    width_km = float(haversine_km(lon_l, lat_l, lon_r, lat_r))
+    return Crop(grid.sat_key, col, row, half, lon, lat, width_km)
+
+
 def sample_crop(grid: FullDiskGrid, rng: np.random.Generator) -> Crop | None:
     scale = grid.size / C.FD_SIZE_2KM
     half = max(8, int(round(rng.choice(C.CROP_HALF_PX_CHOICES) * scale)))
@@ -34,20 +54,9 @@ def sample_crop(grid: FullDiskGrid, rng: np.random.Generator) -> Crop | None:
     for _ in range(200):
         col = int(rng.integers(lo, hi))
         row = int(rng.integers(lo, hi))
-        if grid.radial_frac(col, row) > C.MAX_RADIAL_FRAC:
-            continue
-        corners = [(col + dx, row + dy) for dx in (-half, half) for dy in (-half, half)]
-        if any(grid.radial_frac(c, r) > C.MAX_CORNER_FRAC for c, r in corners):
-            continue
-        lon, lat = grid.pixel_to_lonlat(col, row)
-        if np.isnan(lon) or np.isnan(lat):
-            continue
-        lon_l, lat_l = grid.pixel_to_lonlat(col - half, row)
-        lon_r, lat_r = grid.pixel_to_lonlat(col + half, row)
-        if np.isnan([lon_l, lat_l, lon_r, lat_r]).any():
-            continue
-        width_km = float(haversine_km(lon_l, lat_l, lon_r, lat_r))
-        return Crop(grid.sat_key, col, row, half, lon, lat, width_km)
+        crop = crop_at(grid, col, row, half)
+        if crop is not None:
+            return crop
     return None
 
 

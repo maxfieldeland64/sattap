@@ -23,8 +23,9 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from . import config as C
 from .gameday import game_day
-from .scoring import score_guess
+from .scoring import ladder_mult, score_guess
 
 DATA = Path(os.environ.get("SATTAP_DATA", "data"))
 
@@ -87,6 +88,8 @@ class Guess(BaseModel):
     lat: float = Field(ge=-90, le=90)
     lon: float = Field(ge=-180, le=180)
     hint_used: bool = False
+    # Hint-ladder rounds (the Band 13 round): 0 = none, 1 = second layer, 2 = zoomed out.
+    hint_level: int | None = Field(default=None, ge=0, le=9)
 
 
 @app.post("/api/guess")
@@ -95,12 +98,22 @@ def guess(g: Guess) -> dict:
     match = next((r for r in private["rounds"] if r["round"] == g.round), None)
     if match is None:
         raise HTTPException(404, "No such round")
-    distance_km, score = score_guess(g.lon, g.lat, match["lon"], match["lat"], g.hint_used)
+    mults = match.get("hint_mults")
+    if mults:
+        # a ladder round: the level decides the penalty (a bare hint_used counts as level 1)
+        level = g.hint_level if g.hint_level is not None else (1 if g.hint_used else 0)
+        level = min(level, len(mults) - 1)
+        mult, hint_used = ladder_mult(mults, level), level > 0
+    else:
+        level, mult, hint_used = None, None, g.hint_used
+    distance_km, score = score_guess(g.lon, g.lat, match["lon"], match["lat"], hint_used, mult)
     return {
         "round": g.round,
         "distance_km": round(distance_km, 1),
         "score": score,
-        "hint_used": g.hint_used,
+        "hint_used": hint_used,
+        "hint_level": level,
+        "hint_mult": mult if mult is not None else (C.HINT_SCORE_MULT if hint_used else 1.0),
         "answer": {"lat": match["lat"], "lon": match["lon"]},
     }
 

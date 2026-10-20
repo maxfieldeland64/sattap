@@ -116,3 +116,37 @@ def test_publish_ships_the_landing_media(tmp_path, monkeypatch):
     assert (out / "index.html").exists() and (out / "play" / "index.html").exists() and (out / "landing.js").exists()
     assert (out / "countries.json").exists()  # label anchors must pass the public-JSON check too
     assert json.loads((out / "puzzles" / "latest.json").read_text())["landing"]["satellite"] == "GOES-18"
+
+
+LADDER_PUBLIC = {
+    "date": "2026-10-20",
+    "rounds": [
+        {
+            "round": 5, "image": "/images/d/r5.jpg", "hint_image": "/images/d/r5_ctx.jpg", "loop": None, "hint_loop": None,
+            "ladder": {"band": "GeoColor", "image": "/images/d/r5_gc.jpg", "loop": "/images/d/r5_gc.webp",
+                       "hint_image": "/images/d/r5_gc_ctx.jpg", "hint_loop": None, "mults": [1.0, 0.85, 0.6]},
+        }
+    ],
+}
+
+
+def test_asset_paths_include_the_ladder_layer():
+    assert publish.asset_paths(LADDER_PUBLIC) == [
+        "images/d/r5.jpg", "images/d/r5_ctx.jpg",
+        "images/d/r5_gc.jpg", "images/d/r5_gc_ctx.jpg", "images/d/r5_gc.webp",
+    ]
+    publish.assert_public(LADDER_PUBLIC, "ladder")  # the ladder block carries no answer fields
+
+
+def test_kv_entry_carries_hint_mults_only_for_ladder_rounds():
+    private = {
+        "date": "2026-10-20",
+        "scoring": {"free_km": 150, "scale_km": 2500, "hint_mult": 0.7, "earth_radius_km": 6371.0088},
+        "rounds": [
+            {"round": 1, "lat": 1.5, "lon": 2.5, "stats": {}, "crop": {}},
+            {"round": 5, "lat": 3.5, "lon": 4.5, "stats": {}, "crop": {}, "hint_mults": [1.0, 0.85, 0.6]},
+        ],
+    }
+    doc = json.loads(publish.kv_entry(private)["value"])
+    assert doc["rounds"][0] == {"round": 1, "lat": 1.5, "lon": 2.5}
+    assert doc["rounds"][1] == {"round": 5, "lat": 3.5, "lon": 4.5, "hint_mults": [1.0, 0.85, 0.6]}

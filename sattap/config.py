@@ -95,3 +95,25 @@ SCORE_SCALE_KM = 2500.0
 HINT_SCORE_MULT = 0.70
 # The hint image covers this many times the crop's width (clamped to the full disk).
 HINT_CONTEXT_FACTOR = 3
+
+# --- Band 13 challenge (the final round) ------------------------------------
+# The last round of the day swaps GeoColor for the NOAA STAR CDN's enhanced Band 13 (clean
+# longwave IR, 10.3 um) image of the same scene. Cold cloud tops are colourised (blue -> green ->
+# yellow -> red as they get colder), warm surfaces stay grey. The CDN draws coastlines and country
+# borders on that image, so the crop must be open ocean (no land inside the crop plus a margin) or
+# the overlay would hand over the answer. The crop is centred on the strongest convective core.
+# Only the GOES satellites have it (Meteosat is not on the CDN).
+B13_PRODUCT = "13"
+B13_CROP_HALF_PX = 260        # on the 5424 grid: ~1040 km across at nadir, a bit wider than a normal crop
+B13_ANALYSIS_SIZE = 1356      # cell search runs on a 1/4-size copy (JPEG decodes at 1/4 scale cheaply)
+B13_COAST_MARGIN = 1.2        # land must be absent from this many times the crop's half-width
+B13_MIN_SPREAD = 40           # max-min channel spread that counts as "colourised" (grey = warm)
+B13_SMOOTH_PX = 6.0           # blur radius (analysis pixels, ~50 km) so a cell is a blob, not a speckle
+B13_MIN_PEAK = 0.45           # smoothed coldness needed at the centre (0 = blue edge .. 1 = red core)
+B13_MIN_COLORED_FRAC = 0.03   # share of the crop that is colourised, lower: nothing to look at
+B13_MAX_COLORED_FRAC = 0.50   # upper: a solid blob with no structure
+B13_TARGET_COLORED_FRAC = 0.15
+B13_TOP_K = 6                 # choose among this many best candidates, with the day's seed
+# Hint ladder for this round: 0 = Band 13 close-up, 1 = + GeoColor, 2 = + zoom out.
+# Score multiplier once that level has been reached.
+B13_HINT_MULTS = (1.0, 0.85, 0.6)

@@ -96,10 +96,12 @@ Local pieces: `npm test` (Function tests), `tools/publish.py` (assembles `dist/`
 sattap/
   config.py    constants and tunables (crop sizes, filter thresholds, score scale)
   geo.py       fixed-grid <-> lon/lat, haversine
-  sources.py   GeoColor fetch: GOES from the NOAA STAR CDN, Meteosat from EUMETSAT EUMETView
+  sources.py   GeoColor fetch: GOES from the NOAA STAR CDN, Meteosat from EUMETSAT EUMETView;
+               plus GOES Band 13 from the same CDN for the last round
+  b13.py       the Band 13 round: finds an open-ocean convective cell in the enhanced image
   crops.py     candidate crop sampling
   filters.py   playability filter + difficulty heuristic (uses a real land mask)
-  puzzle.py    builds the daily puzzle (5 rounds across the difficulty range)
+  puzzle.py    builds the daily puzzle (4 GeoColor rounds across the difficulty range + the Band 13 round)
   scoring.py   distance -> score
   synth.py     synthetic full-disk images for offline dev
   api.py       FastAPI app
@@ -117,7 +119,8 @@ frame. The same crop box is cut from every frame, so the scene stays registered 
 - `r{n}.jpg` / `r{n}_ctx.jpg`: stills of the last frame (reveal screen, and the fallback if a loop is missing)
 
 If fewer than two frames are cached for a satellite the build falls back to stills. Tunables are
-`LOOP_*` in `sattap/config.py`. A fetch is ~12 full-disk JPEGs (~180 MB); a build takes under a minute.
+`LOOP_*` in `sattap/config.py`. A fetch is ~12 full-disk GeoColor JPEGs (~180 MB) plus ~12 GOES Band 13 JPEGs
+(~10 MB each, for the last round); a build takes under a minute.
 Animated WebP is supported by current Safari, Chrome and Firefox; there is no JS frame-cycler fallback yet.
 
 ### Building outside daylight hours
@@ -129,9 +132,36 @@ python3 -m sattap.cli fetch --at 17:00        # loop ending 17:00 UTC today (or 
 python3 -m sattap.cli build --at 17:00
 ```
 
+## The Band 13 round
+
+The last round is a Band 13 (10.3 um, "clean window" IR) challenge. The picture is the NOAA STAR
+CDN's enhanced Band 13 image: warm surfaces stay grey and cold cloud tops are coloured blue, green,
+yellow, red as they get colder. The answer is the strongest cold-top core in the crop, so the pin
+says "where is this cell?".
+
+The CDN burns coastlines and country borders into that image, so a crop with land in it would hand
+over the answer. Only open-ocean crops are used (`window_has_land`, with a margin), which also means
+the shoreline-matching skill is useless here; players have to read cloud regimes, cell structure and
+timing, and use the hints for geography:
+
+| Level | What the player sees | Score multiplier |
+|---|---|---|
+| 0 | Band 13 close-up (animated loop) | 1.0 |
+| 1 | + the GeoColor layer of the same scene, with a Band 13 / GeoColor switch | 0.85 |
+| 2 | + the 3x-wider view of either layer, crop outlined (shows the coast) | 0.6 |
+
+The level is sent as `hint_level` to `/api/guess`; the multipliers live in the private answers
+(`hint_mults`), so the Function and FastAPI both apply the server's copy. Band 13 comes only from the
+GOES CDN (Meteosat has no equivalent source here yet), so if a satellite has no Band 13 for the
+puzzle frame or no ocean cell qualifies, the day is five GeoColor rounds.
+
+Not calibrated: the CDN JPEGs carry a colour enhancement, not brightness temperatures, so the build
+ranks cloud tops by the colour ramp. Real temperatures (Level 2 CMI from the NOAA AWS buckets) would
+allow rounds like "estimate the temperature here".
+
 ## Playability filter
 
-Candidates are rejected unless they are in full daylight (solar elevation >= 15 degrees at every
+These apply to the four GeoColor rounds. Candidates are rejected unless they are in full daylight (solar elevation >= 15 degrees at every
 sampled point, so no terminator crops), contain at least 12% land, are under 80% cloud, and are
 not featureless. Difficulty is a mix of cloud cover and how coastal the crop is.
 
@@ -149,6 +179,10 @@ through `tools/split_antimeridian.py` to remove polygon edges that wrap across 1
 - `HINT_SCORE_MULT` / `HINT_CONTEXT_FACTOR`: the optional hint swaps the close-up for a view
   3x wider with the crop outlined, and multiplies that round's score by 0.7. The penalty is
   applied server-side (`hint_used` on `/api/guess`) and remembered across reloads.
+
+- `B13_*`: the Band 13 round. `B13_CROP_HALF_PX` (crop size), `B13_COAST_MARGIN` (how far from any
+  land the crop must be), `B13_MIN_PEAK` / `B13_*_COLORED_FRAC` (what counts as a good cell),
+  `B13_HINT_MULTS` (score multiplier per hint level, default 1.0 / 0.85 / 0.6).
 
 Build timing matters: run the daily build when most of the disk is sunlit (roughly 15-19 UTC).
 At 23:30 UTC GOES-East is mostly dusk and GOES-West is mostly open ocean, so almost nothing passes

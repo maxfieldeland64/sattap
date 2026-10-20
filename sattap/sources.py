@@ -3,6 +3,7 @@
 URL layout (as published by NOAA STAR):
   {CDN}/{GOES19|GOES18}/ABI/FD/GEOCOLOR/            <- HTML directory listing
   {CDN}/.../YYYYDDDHHMM_GOES19-ABI-FD-GEOCOLOR-5424x5424.jpg
+  {CDN}/{GOES19|GOES18}/ABI/FD/13/YYYYDDDHHMM_GOES19-ABI-FD-13-5424x5424.jpg   <- Band 13, same grid
 
 Meteosat (MTG FCI) comes from EUMETSAT's public EUMETView WMS: one GetMap request per frame,
 asking for the whole disk in the geostationary projection (no account or API key). Frames are
@@ -26,6 +27,8 @@ from . import config as C
 _NAME_RE = re.compile(r"(\d{11})_(GOES\d+)-ABI-FD-GEOCOLOR-(\d+)x(\d+)\.jpg")
 # Cached file names for every source (GOES ABI and Meteosat FCI).
 CACHE_NAME_RE = re.compile(r"(\d{11})_([A-Z0-9]+)-(?:ABI|FCI)-FD-GEOCOLOR-(\d+)x(\d+)\.jpg")
+# Cached Band 13 (clean IR) frames, GOES only.
+B13_NAME_RE = re.compile(r"(\d{11})_(GOES\d+)-ABI-FD-" + re.escape(C.B13_PRODUCT) + r"-(\d+)x(\d+)\.jpg")
 _HEADERS = {"User-Agent": "sattap-poc/0.1 (hobby project)"}
 
 
@@ -41,10 +44,20 @@ def is_eumetview(sat_key: str) -> bool:
     return C.SATELLITES[sat_key].get("source") == "eumetview"
 
 
-def cache_name(sat_key: str, observed_at: datetime, size: int) -> str:
+def cache_name(sat_key: str, observed_at: datetime, size: int, product: str = "GEOCOLOR") -> str:
     sat = C.SATELLITES[sat_key]
     instrument = "FCI" if is_eumetview(sat_key) else "ABI"
-    return f"{observed_at:%Y%j%H%M}_{sat['slug']}-{instrument}-FD-GEOCOLOR-{size}x{size}.jpg"
+    return f"{observed_at:%Y%j%H%M}_{sat['slug']}-{instrument}-FD-{product}-{size}x{size}.jpg"
+
+
+def has_b13(sat_key: str) -> bool:
+    """Band 13 comes from the NOAA STAR CDN, so only the GOES satellites have it."""
+    return not is_eumetview(sat_key)
+
+
+def b13_url(sat_key: str, when: datetime, size: int = C.GEOCOLOR_SIZE) -> str:
+    slug = C.SATELLITES[sat_key]["slug"]
+    return f"{C.STAR_CDN}/{slug}/ABI/FD/{C.B13_PRODUCT}/{when:%Y%j%H%M}_{slug}-ABI-FD-{C.B13_PRODUCT}-{size}x{size}.jpg"
 
 
 def listing_url(sat_key: str) -> str:
@@ -215,3 +228,33 @@ def fetch_loop(sat_key: str, cache_dir: Path, n: int = C.LOOP_FRAMES, at: dateti
     if is_eumetview(sat_key):
         return eumetview_loop(sat_key, cache_dir, n, at)
     return [download(f, cache_dir) for f in loop_frames(sat_key, n, at=at)]
+
+
+def fetch_b13_frames(sat_key: str, times: list[datetime], cache_dir: Path, size: int = C.GEOCOLOR_SIZE) -> list[Frame]:
+    """Band 13 full disks for the given observation times (the GeoColor loop's own timestamps).
+
+    Band 13 and GeoColor share a 10-minute cadence, so the times line up. A frame the CDN does
+    not have (or that fails to download) is skipped; the round simply uses the frames that exist.
+    """
+    if not has_b13(sat_key):
+        return []
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    out: list[Frame] = []
+    for t in times:
+        url = b13_url(sat_key, t, size)
+        dest = cache_dir / cache_name(sat_key, t, size, C.B13_PRODUCT)
+        if not dest.exists():
+            tmp = dest.with_suffix(".part")
+            try:
+                with requests.get(url, headers=_HEADERS, timeout=C.HTTP_TIMEOUT_S, stream=True) as r:
+                    r.raise_for_status()
+                    with open(tmp, "wb") as f:
+                        for chunk in r.iter_content(1 << 20):
+                            f.write(chunk)
+                tmp.replace(dest)
+            except requests.RequestException as e:
+                tmp.unlink(missing_ok=True)
+                print(f"  no Band 13 for {C.SATELLITES[sat_key]['name']} {t:%H:%M} UTC: {e}")
+                continue
+        out.append(Frame(sat_key, url, t, dest))
+    return out

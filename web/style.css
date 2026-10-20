@@ -43,6 +43,7 @@ button { font-family: inherit; cursor: pointer; }
 .hint-btn:hover { border-color: var(--accent); }
 .hint-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .hint-btn[hidden] { display: none; }
+.layer-btn { left: auto; bottom: auto; right: 12px; top: 12px; }
 .crop.hinted img { object-fit: contain; }
 .hint-box { position: absolute; pointer-events: none; border: 2px solid var(--you); border-radius: 3px; box-shadow: 0 0 0 1px rgba(11,15,20,0.6); }
 .hint-box[hidden] { display: none; }
