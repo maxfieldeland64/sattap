@@ -77,7 +77,7 @@ def load_analysis(path: Path, size: int = C.B13_ANALYSIS_SIZE) -> np.ndarray:
 def smooth_field(cold: np.ndarray, radius: float = C.B13_SMOOTH_PX) -> np.ndarray:
     """Gaussian-blurred coldness, so the maximum sits in the middle of a cell's cold core
     instead of on one noisy pixel. Goes through an 8-bit image because PIL blurs those."""
-    img = Image.fromarray((cold * 255.0).astype(np.uint8), "L").filter(ImageFilter.GaussianBlur(radius))
+    img = Image.fromarray((cold * 255.0).astype(np.uint8)).filter(ImageFilter.GaussianBlur(radius))
     return np.asarray(img, dtype=np.float32) / 255.0
 
 

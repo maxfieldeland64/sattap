@@ -16,6 +16,7 @@ import json
 import os
 from datetime import date, datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -89,7 +90,8 @@ class Guess(BaseModel):
     lon: float = Field(ge=-180, le=180)
     hint_used: bool = False
     # Hint-ladder rounds (the Band 13 round): 0 = none, 1 = second layer, 2 = zoomed out.
-    hint_level: int | None = Field(default=None, ge=0, le=9)
+    # Optional, not `int | None`: pydantic evaluates this annotation at runtime, which needs 3.10+.
+    hint_level: Optional[int] = Field(default=None, ge=0, le=9)
 
 
 @app.post("/api/guess")
