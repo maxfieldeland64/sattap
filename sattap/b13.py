@@ -123,6 +123,7 @@ def pick_b13_round(
     """
     avoid = avoid or []
     scored: list[tuple[float, B13Pick]] = []
+    why = {"edge": 0, "land": 0, "night": 0, "structure": 0, "near other rounds": 0}  # why cells were rejected
     for src in sources:
         if not getattr(src, "b13_loop", None):
             continue
@@ -147,17 +148,22 @@ def pick_b13_round(
             col, row = int(round(col_a / scale)), int(round(row_a / scale))
             crop = crop_at(full, col, row, half_full)
             if crop is None:
+                why["edge"] += 1
                 continue
             if window_has_land(agrid, col_a, row_a, int(np.ceil(half_a * C.B13_COAST_MARGIN))):
+                why["land"] += 1
                 continue
             sun = min_sun_elevation(full, crop, t_still)
             if sun < C.MIN_SUN_ELEV_DEG:
+                why["night"] += 1
                 continue
             win = cold[max(row_a - half_a, 0): row_a + half_a + 1, max(col_a - half_a, 0): col_a + half_a + 1]
             frac = float((win > 0).mean())
             if not C.B13_MIN_COLORED_FRAC <= frac <= C.B13_MAX_COLORED_FRAC:
+                why["structure"] += 1
                 continue
             if any(haversine_km(crop.lon, crop.lat, lo, la) < min_separation_km for lo, la in avoid):
+                why["near other rounds"] += 1
                 continue
             # a strong core and a crop with some structure around it score best
             score = peak - abs(frac - C.B13_TARGET_COLORED_FRAC)
@@ -165,6 +171,7 @@ def pick_b13_round(
         print(f"b13 {C.SATELLITES[src.sat_key]['name']}: {len(peaks)} cells, {len(scored)} eligible so far")
 
     if not scored:
+        print("b13: no eligible cell. Cells rejected for: " + ", ".join(f"{k} {v}" for k, v in why.items() if v))
         return None
     scored.sort(key=lambda x: x[0], reverse=True)
     top = scored[: max(1, C.B13_TOP_K)]

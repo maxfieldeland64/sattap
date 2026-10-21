@@ -80,9 +80,10 @@ def test_picks_an_open_ocean_cell_and_centres_on_it(tmp_path):
     assert C.B13_MIN_COLORED_FRAC <= pick.colored_frac <= C.B13_MAX_COLORED_FRAC
 
 
-def test_rejects_cells_over_land(tmp_path):
+def test_rejects_cells_over_land(tmp_path, capsys):
     # Amazon basin: the CDN draws borders there, so the crop would give the answer away
     assert pick_b13_round([_source(tmp_path, (-62.0, -8.0))], np.random.default_rng(0)) is None
+    assert "no eligible cell" in capsys.readouterr().out.lower()  # and the build says why: "land 1"
 
 
 def test_rejects_cells_near_a_coast(tmp_path):
@@ -284,13 +285,15 @@ def test_build_makes_the_last_round_a_band_13_ladder(synth_sources, tmp_path):
     assert json.dumps(pub).count("lat") == 0  # nothing about the answer in the public file
 
 
-def test_build_falls_back_to_five_plain_rounds_without_band_13(synth_sources, tmp_path):
+def test_build_falls_back_to_five_plain_rounds_without_band_13(synth_sources, tmp_path, capsys):
     from datetime import date
 
     from sattap.puzzle import build_daily
 
     plain = [SourceImage(s.sat_key, s.path, s.observed_at, loop=s.loop) for s in synth_sources]
     pub = build_daily(date(2026, 10, 20), plain, tmp_path, n_candidates=120)
+    out = capsys.readouterr().out
+    assert "no Band 13 round" in out and "GOES-19 17:00 UTC" in out and "fetch" in out  # says what to do
     assert len(pub["rounds"]) == C.N_ROUNDS
     assert all("ladder" not in r and r["band"] == "GeoColor" for r in pub["rounds"])
 

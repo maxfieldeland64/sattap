@@ -248,7 +248,14 @@ def build_daily(
     # The last round is the Band 13 challenge when a GOES satellite has Band 13 frames and an
     # open-ocean convective cell turns up; otherwise the day stays n_rounds of "where" rounds.
     b13_pick: B13Pick | None = None
-    rounds = select_rounds(cands, n_rounds - 1 if n_rounds >= 2 and any(s.b13_loop for s in sources) else n_rounds)
+    have_b13 = any(s.b13_loop for s in sources)
+    if not have_b13:
+        print(
+            "no Band 13 round: no GOES source has a Band 13 image for its newest frame ("
+            + ", ".join(f"{C.SATELLITES[s.sat_key]['name']} {s.observed_at:%H:%M} UTC" for s in sources if s.sat_key != "meteo")
+            + "). Run `fetch` again (it downloads Band 13 for the same times) or build with --at."
+        )
+    rounds = select_rounds(cands, n_rounds - 1 if n_rounds >= 2 and have_b13 else n_rounds)
     if len(rounds) < n_rounds:
         b13_pick = pick_b13_round(sources, np.random.default_rng((day.toordinal() if seed is None else seed) + 13),
                                   avoid=[(c.crop.lon, c.crop.lat) for c in rounds])
