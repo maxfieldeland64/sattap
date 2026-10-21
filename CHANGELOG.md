@@ -7,6 +7,10 @@ All notable changes to SatTap are recorded here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Lakes on the guess globe.** The land polygons are solid, so the Great Lakes, Victoria, Baikal,
+  the Caspian and the rest drew as land. `web/lakes.geojson` (Natural Earth 50m lakes plus the
+  Caspian, about 280 KB, built by `tools/make_lakes.mjs`) is now painted in the ocean colour over
+  the land, with a softer shoreline. No change to scoring or puzzles.
 - **Band 13 challenge as the last round.** Round 5 now shows the NOAA STAR CDN's enhanced Band 13
   (clean longwave IR) image of a convective cell instead of GeoColor, and you pin where the cell is.
   It has its own **hint ladder**: the first view is Band 13 only, hint 1 adds the GeoColor layer

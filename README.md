@@ -63,9 +63,10 @@ satellites, so no constants needed adjusting. If NOAA changes anything, re-run t
 - **Lock in** scores the pin through `/api/guess`; the reveal frames your guess, the answer and
   the crop's footprint on the globe, and a summary screen offers a copy-able result.
 - Progress is saved in `localStorage` per date, so a reload resumes instead of replaying.
-- The globe has no tile server: it draws Natural Earth 50m land polygons (`web/land.geojson`) and
-  country borders (`web/borders.geojson`, built by `tools/make_borders.mjs`; both public domain)
-  over a flat ocean, so there are no API keys. Country names (`web/countries.json`, built by
+- The globe has no tile server: it draws Natural Earth 50m land polygons (`web/land.geojson`), lakes
+  (`web/lakes.geojson`, built by `tools/make_lakes.mjs`, including the Caspian) and country borders
+  (`web/borders.geojson`, built by `tools/make_borders.mjs`; all public domain) over a flat ocean,
+  so there are no API keys. Country names (`web/countries.json`, built by
   `tools/make_country_labels.mjs`; names follow Natural Earth) show only where they fit inside
   their country at the current zoom, so zooming in reveals more; the **Aa** button turns them off
   (remembered on the device). On landscape screens at least 900 px wide
