@@ -308,7 +308,10 @@
     const wide = (animate && m.hint_loop) || m.hint_image;
     $('cropImg').src = on && wide ? wide : close;
     $('lightboxImg').src = close;
-    $('chipBand').textContent = lad && state.layer === 'alt' ? lad.band : r.band;
+    const band = lad && state.layer === 'alt' ? lad.band : r.band;
+    $('chipBand').textContent = band;
+    // channel info only exists for the Band 13 picture, while guessing
+    $('infoBtn').hidden = !(band.startsWith('B13') && state.phase === 'guess');
     $('hintBtn').textContent = hintLabel(r);
     // the layer switch only exists once hint 1 has put a second layer on the table
     const showSwitch = !!lad && state.hintLevel >= 1 && state.phase === 'guess';
@@ -498,9 +501,18 @@
     $('layerBtn').addEventListener('click', onLayer);
     window.addEventListener('resize', layoutHintBox);
     $('cropBtn').addEventListener('click', () => { $('lightbox').hidden = false; });
+    const openInfo = () => { $('chanInfo').hidden = false; $('chanInfo').querySelector('.chan-card').focus(); };
+    const closeInfo = () => { $('chanInfo').hidden = true; $('infoBtn').focus(); };
+    $('infoBtn').addEventListener('click', openInfo);
+    $('chanClose').addEventListener('click', closeInfo);
+    $('chanDone').addEventListener('click', closeInfo);
+    $('chanInfo').addEventListener('click', (e) => { if (e.target === $('chanInfo')) closeInfo(); });
     $('lightboxClose').addEventListener('click', () => { $('lightbox').hidden = true; });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { $('lightbox').hidden = true; }
+      if (e.key === 'Escape') {
+        $('lightbox').hidden = true;
+        if (!$('chanInfo').hidden) closeInfo();
+      }
     });
     $('rerollBtn').addEventListener('click', async () => {
       $('rerollBtn').disabled = true;

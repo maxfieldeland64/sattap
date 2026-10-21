@@ -28,6 +28,7 @@
     <div class="chips">
       <span id="chipBand" class="chip mono"></span>
       <span id="chipSat" class="chip mono"></span>
+      <button id="infoBtn" class="chip info-btn" type="button" aria-haspopup="dialog" hidden>&#9432; Channel info</button>
     </div>
     <div id="hintBox" class="hint-box" hidden aria-hidden="true"></div>
     <button id="hintBtn" class="chip hint-btn" type="button">Hint · wider view (−30%)</button>
@@ -70,6 +71,48 @@
 <div id="lightbox" class="lightbox" hidden>
   <button id="lightboxClose" class="lightbox-close" aria-label="Close">&times;</button>
   <div class="lightbox-scroll"><img id="lightboxImg" alt="Enlarged satellite image"></div>
+</div>
+
+<div id="chanInfo" class="chan-info" hidden>
+  <div class="chan-card" role="dialog" aria-modal="true" aria-labelledby="chanTitle" tabindex="-1">
+    <button id="chanClose" class="chan-close" type="button" aria-label="Close">&times;</button>
+    <div class="label mono">Channel info</div>
+    <h2 id="chanTitle">Band 13: clean longwave infrared</h2>
+
+    <h3>What it is</h3>
+    <p>Band 13 is one of 16 channels on the GOES ABI imager. It sees infrared light at 10.3 &micro;m, in a part of the spectrum where the atmosphere is almost transparent, which is why it is called the &ldquo;clean&rdquo; window. The satellite is not measuring sunlight bouncing off clouds. It is measuring heat the surface and clouds give off, so it works the same at midnight as at noon.</p>
+    <p>The brightness reflectivity you see is really a <em>brightness temperature</em>: the colder the thing the satellite is looking at, the more it stands out. Cloud temperature falls with height, so this channel is effectively a cloud-top height map.</p>
+
+    <h3>How to read the colours</h3>
+    <ul class="chan-scale">
+      <li><b>Grey, dark</b> Warm. The ocean surface, land, or low cloud.</li>
+      <li><b>Blue</b> Cool, mid-level cloud.</li>
+      <li><b>Green &rarr; yellow</b> Colder, taller cloud.</li>
+      <li><b>Red</b> The coldest tops, usually deep thunderstorm towers near the top of the troposphere.</li>
+    </ul>
+
+    <h3>What the clouds tell you about the weather</h3>
+    <ul>
+      <li><b>Tight, bright red-and-yellow blobs</b> are deep thunderstorm clusters. A smooth, spreading shield with a tiny cold spot on top is an anvil blowing downwind from a storm.</li>
+      <li><b>A spiral</b> of cold cloud, often with a round gap in the middle (the eye), is a tropical cyclone. Spiral bands curve in toward a single centre.</li>
+      <li><b>A long, curving ribbon</b> of cloud that sweeps across the crop is a front. A comma shape, fat at one end with a tail, is a mid-latitude low-pressure system.</li>
+      <li><b>Lines or rows of small cells</b> often mean cold air flowing over warmer water. The rows line up with the wind.</li>
+      <li><b>Almost nothing</b> but grey: clear sky, or only low cloud. Low stratocumulus is nearly the same temperature as the sea, so it barely shows in this channel.</li>
+    </ul>
+
+    <h3>What it hints about where you are</h3>
+    <ul>
+      <li><b>Tropics:</b> the tallest, coldest tops are near the equator, because the atmosphere is deepest there. A narrow band of persistent storms is the Intertropical Convergence Zone, which sits a few degrees north of the equator over the Pacific and Atlantic. A similar band slanting southeast from the western Pacific is the South Pacific Convergence Zone.</li>
+      <li><b>Tropical cyclones</b> are confined to warm water, roughly 5&deg; to 30&deg; latitude, and fall in certain seasons: Atlantic and Pacific basins in northern summer and autumn, the southern basins in the opposite half of the year.</li>
+      <li><b>Mid-latitudes:</b> fronts and comma clouds mean you are poleward of about 30&deg;. Cloud tops there are lower and so less cold, so expect more yellow and green than deep red.</li>
+      <li><b>Subtropical oceans:</b> large cloud-free grey areas point to the sinking air of the subtropical highs, around 20&deg; to 35&deg; latitude. Grey with faint speckle off the west coasts of the Americas hints at the cool stratocumulus decks.</li>
+      <li><b>Scale and shape:</b> the picture is stretched toward the edge of the satellite&rsquo;s disk, so very elongated clouds suggest you are far from the point directly below the satellite.</li>
+    </ul>
+
+    <h3>Handy to know</h3>
+    <p>Pixels are about 2 km across at the point directly below the satellite. Coastlines and borders are drawn on top of the image, which is why this round only uses open ocean. If you need more context, the hints add the true-colour view and a wider zoom.</p>
+    <button id="chanDone" class="ghost" type="button">Got it</button>
+  </div>
 </div>
 
 <div id="summary" class="summary" hidden>
