@@ -1,9 +1,9 @@
 /* SatTap globe: a 3D-looking world you can spin and zoom, drawn on a 2D canvas with d3-geo's
  * orthographic projection. No tiles, no WebGL, no API keys: it draws the bundled Natural Earth
- * land and border data. Needs d3-array + d3-geo (web/vendor/) loaded first.
+ * land, lake and border data. Needs d3-array + d3-geo (web/vendor/) loaded first.
  *
  *   const globe = SatTapGlobe.create(canvas, { onTap({lat, lon}), colors });
- *   globe.setData({ land, borders, countries });   // countries: label anchors (web/countries.json)
+ *   globe.setData({ land, lakes, borders, countries });   // countries: label anchors (web/countries.json)
  *   globe.setLabels(true);                      // country names on or off
  *   globe.resetView(-137);                      // centre on a longitude, whole globe in view
  *   globe.setGuess({lat, lon});                 // your pin
@@ -30,6 +30,7 @@
     space: '#080C12',
     ocean: ['#13243A', '#08111C'], // lit side, shadow side
     land: '#2C4159',
+    lakeCoast: '#46607F', // a softer shoreline than the sea coast so lakes read as lakes
     coast: '#5A7594',
     border: '#6B84A3',
     label: '#D2DEEB',
@@ -56,7 +57,7 @@
     let baseR = 140; // globe radius in CSS pixels at k = 1
 
     // ---- data and overlays ----
-    let land = null, borders = null;
+    let land = null, lakes = null, borders = null;
     let countries = null; // [{n: name, at: [lon, lat], a: area in steradians}], biggest first
     let showLabels = true;
     const graticule = d3.geoGraticule().step([30, 30])();
@@ -177,6 +178,12 @@
         ctx.beginPath(); path(land);
         ctx.fillStyle = colors.land; ctx.fill();
         ctx.lineWidth = 0.6; ctx.strokeStyle = colors.coast; ctx.stroke();
+      }
+      // lakes: the land polygons are solid, so lakes are cut back out with the same ocean gradient
+      if (lakes) {
+        ctx.beginPath(); path(lakes);
+        ctx.fillStyle = og; ctx.fill();
+        ctx.lineWidth = 0.5; ctx.strokeStyle = colors.lakeCoast; ctx.stroke();
       }
       // borders are the heaviest layer, so they sit out while you are mid-spin on a slow device
       if (borders && !(interacting && k < 2)) {
@@ -427,6 +434,7 @@
       resize,
       setData(d) {
         if (d.land !== undefined) land = d.land;
+        if (d.lakes !== undefined) lakes = d.lakes;
         if (d.borders !== undefined) borders = d.borders;
         if (d.countries !== undefined) countries = d.countries;
         requestDraw();

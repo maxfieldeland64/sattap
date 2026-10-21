@@ -191,7 +191,7 @@
 
   // ---------- globe ----------
   // A 3D-looking globe (web/globe.js) instead of a flat map: drag to spin, pinch or scroll to zoom,
-  // tap to drop a pin. Land polygons (Natural Earth, bundled in /land.geojson) and country borders
+  // tap to drop a pin. Land polygons (Natural Earth, bundled in /land.geojson), lakes and country borders
   // are drawn over a flat ocean; there are no labels, roads or API keys.
   // Each round opens centred under the satellite that took the picture (the chip already names it).
   const SAT_LON = { 'GOES-18': -137.0, 'GOES-19': -75.2, 'Meteosat-12': 0.0 }; // sub-satellite longitudes, as in sattap/config.py
@@ -204,6 +204,10 @@
       .then((r) => r.json())
       .then((data) => globe.setData({ land: data }))
       .catch(() => { /* the globe still works as a blank ball */ });
+    fetch('/lakes.geojson')
+      .then((r) => r.json())
+      .then((data) => globe.setData({ lakes: data }))
+      .catch(() => { /* lakes are a nicety */ });
     fetch('/borders.geojson')
       .then((r) => r.json())
       .then((data) => globe.setData({ borders: data }))
