@@ -41,9 +41,11 @@ NOT_FOUND_HTML = """<!doctype html><meta charset="utf-8"><title>Not found</title
 def asset_paths(puzzle: dict) -> list[str]:
     out = []
     for r in puzzle["rounds"]:
-        for k in ASSET_KEYS:
-            if r.get(k):
-                out.append(r[k].lstrip("/"))
+        # a hint-ladder round carries a second layer's media under "ladder"
+        for holder in (r, r.get("ladder") or {}):
+            for k in ASSET_KEYS:
+                if holder.get(k):
+                    out.append(holder[k].lstrip("/"))
     return out
 
 
@@ -115,10 +117,13 @@ def carry_previous(site_url: str, dist: Path, current: str, days: int) -> list[s
 
 
 def kv_entry(private: dict) -> dict:
-    doc = {
-        "scoring": private["scoring"],
-        "rounds": [{"round": r["round"], "lat": r["lat"], "lon": r["lon"]} for r in private["rounds"]],
-    }
+    def entry(r: dict) -> dict:
+        e = {"round": r["round"], "lat": r["lat"], "lon": r["lon"]}
+        if r.get("hint_mults"):  # hint-ladder round: the Function needs the per-level multipliers
+            e["hint_mults"] = r["hint_mults"]
+        return e
+
+    doc = {"scoring": private["scoring"], "rounds": [entry(r) for r in private["rounds"]]}
     return {"key": f"puzzle:{private['date']}", "value": json.dumps(doc, separators=(",", ":"))}
 
 

@@ -11,8 +11,10 @@
     results: [], // [{round, score, distance_km, guess:{lat,lon}, answer:{lat,lon}}]
     phase: 'guess', // 'guess' | 'reveal'
     guess: null,
-    hintUsed: false, // wider-view hint taken this round (score x0.7)
+    hintUsed: false, // any hint taken this round (penalises the score)
+    hintLevel: 0, // hint-ladder rounds: 0 none, 1 second layer, 2 zoomed out (plain rounds: 0 or 1)
     hintView: false, // currently showing the wider view
+    layer: 'main', // hint-ladder rounds: which layer is on screen, 'main' or 'alt'
   };
 
   let globe;
@@ -22,9 +24,13 @@
   const load = (d) => { try { return JSON.parse(localStorage.getItem(key(d))); } catch { return null; } };
   const save = () => {
     try {
-      // hintRound remembers an unscored hint so a reload can't undo the penalty
-      const hintRound = state.hintUsed && state.phase === 'guess' ? state.index : null;
-      localStorage.setItem(key(state.puzzle.date), JSON.stringify({ results: state.results, hintRound }));
+      // hintRound/hintLevel remember an unscored hint so a reload can't undo the penalty
+      const pending = state.hintUsed && state.phase === 'guess';
+      localStorage.setItem(key(state.puzzle.date), JSON.stringify({
+        results: state.results,
+        hintRound: pending ? state.index : null,
+        hintLevel: pending ? state.hintLevel : 0,
+      }));
     } catch { /* private mode etc. */ }
   };
 
@@ -174,7 +180,10 @@
     [3, 'The satellite saw that. The satellite is judging you.'],
     [0, "That wasn't a guess, that was a cry for help."],
   ];
-  const rawScore = (score, hintUsed) => (hintUsed ? Math.min(100, Math.round(score / HINT_MULT)) : score);
+  // Score multiplier a result was played under: the server sends it (hint ladders have several),
+  // older saves only know whether a hint was used.
+  const multOf = (r) => (r.hint_mult != null ? r.hint_mult : r.hint_used ? HINT_MULT : 1);
+  const rawScore = (score, mult) => (mult < 1 ? Math.min(100, Math.round(score / mult)) : score);
   const quipFor = (raw) => QUIPS.find(([min]) => raw >= min)[1];
 
   const total = () => state.results.reduce((a, r) => a + r.score, 0);
@@ -268,44 +277,99 @@
     box.hidden = false;
   }
 
+  // A hint-ladder round (the Band 13 challenge) starts on one layer and unlocks, in order:
+  // hint 1 = a second layer of the same scene (GeoColor), hint 2 = the zoomed-out view.
+  // r.ladder holds the second layer's media; `mults` are the score multipliers per level.
+  const ladderOf = (r) => r.ladder || null;
+  const pct = (mult) => `−${Math.round((1 - mult) * 100)}%`;
+  const shortBand = (name) => name.split(' ')[0];
+  // the layer on screen: the round's own media, or (hint 1+) the ladder's
+  const layerOf = (r) => (ladderOf(r) && state.layer === 'alt' ? ladderOf(r) : r);
+
+  function hintLabel(r) {
+    const lad = ladderOf(r);
+    if (!lad) {
+      return state.hintView ? 'Back to close-up' : state.hintUsed ? 'Show wider view' : 'Hint · wider view (−30%)';
+    }
+    if (state.hintLevel === 0) return `Hint 1 · add ${lad.band} (${pct(lad.mults[1])})`;
+    if (state.hintLevel === 1) return `Hint 2 · zoom out (${pct(lad.mults[2])})`;
+    return state.hintView ? 'Back to close-up' : 'Show wider view';
+  }
+
   function setHintView(on) {
     const r = state.puzzle.rounds[state.index];
+    const lad = ladderOf(r);
     state.hintView = on;
     $('crop').classList.toggle('hinted', on);
     // Loops play while guessing; the reveal (and any missing loop) falls back to the still.
     const animate = state.phase === 'guess';
-    const close = (animate && r.loop) || r.image;
-    const wide = (animate && r.hint_loop) || r.hint_image;
+    const m = layerOf(r);
+    const close = (animate && m.loop) || m.image;
+    const wide = (animate && m.hint_loop) || m.hint_image;
     $('cropImg').src = on && wide ? wide : close;
-    $('hintBtn').textContent = on
-      ? 'Back to close-up'
-      : state.hintUsed ? 'Show wider view' : 'Hint · wider view (−30%)';
+    $('lightboxImg').src = close;
+    const band = lad && state.layer === 'alt' ? lad.band : r.band;
+    $('chipBand').textContent = band;
+    // channel info only exists for the Band 13 picture, while guessing
+    $('infoBtn').hidden = !(band.startsWith('B13') && state.phase === 'guess');
+    $('hintBtn').textContent = hintLabel(r);
+    // the layer switch only exists once hint 1 has put a second layer on the table
+    const showSwitch = !!lad && state.hintLevel >= 1 && state.phase === 'guess';
+    $('layerBtn').hidden = !showSwitch;
+    if (showSwitch) {
+      const other = state.layer === 'alt' ? r.band : lad.band;
+      $('layerBtn').textContent = `Switch to ${shortBand(other)}`;
+    }
     layoutHintBox();
   }
 
   function onHint() {
     if (state.phase !== 'guess') return;
-    if (!state.hintUsed) { state.hintUsed = true; save(); }
-    setHintView(!state.hintView);
+    const r = state.puzzle.rounds[state.index];
+    const lad = ladderOf(r);
+    if (!lad) {
+      if (!state.hintUsed) { state.hintUsed = true; state.hintLevel = 1; save(); }
+      setHintView(!state.hintView);
+      return;
+    }
+    if (state.hintLevel === 0) {
+      state.hintLevel = 1; state.hintUsed = true; state.layer = 'alt'; // show the new layer straight away
+      save();
+      setHintView(false);
+    } else if (state.hintLevel === 1) {
+      state.hintLevel = 2; save();
+      setHintView(true);
+    } else {
+      setHintView(!state.hintView);
+    }
+  }
+
+  function onLayer() {
+    if (state.phase !== 'guess' || !ladderOf(state.puzzle.rounds[state.index])) return;
+    state.layer = state.layer === 'alt' ? 'main' : 'alt';
+    setHintView(state.hintView);
   }
 
   function showRound() {
     const r = state.puzzle.rounds[state.index];
     state.phase = 'guess';
     state.guess = null;
-    state.hintUsed = state.pendingHint === state.index;
+    // a hint taken before a reload still counts (the saved level, or level 1 for older saves)
+    const resumed = state.pendingHint === state.index;
+    state.hintLevel = resumed ? Math.min(state.pendingLevel || 1, ladderOf(r) ? r.ladder.mults.length - 1 : 1) : 0;
+    state.hintUsed = state.hintLevel > 0;
     state.pendingHint = null;
+    state.pendingLevel = 0;
     state.hintView = false;
+    state.layer = ladderOf(r) && state.hintLevel >= 1 ? 'alt' : 'main';
     $('hintBtn').hidden = !r.hint_image;
     globe.clear();
     globe.resize();
     globe.resetView(startLon(r), state.index > 0);
 
-    $('roundLabel').innerHTML = `Round ${state.index + 1} of ${nRounds()} <small>&middot; Where is this?</small>`;
+    $('roundLabel').innerHTML = `Round ${state.index + 1} of ${nRounds()} <small>&middot; Where is this?${ladderOf(r) ? ' &middot; Band 13' : ''}</small>`;
     $('runningScore').textContent = total();
     setHintView(false);
-    $('lightboxImg').src = r.loop || r.image;
-    $('chipBand').textContent = r.band;
     $('chipSat').textContent = r.satellite;
     const ft = r.frame_times || [];
     const when = ft.length > 1 ? `${fmtTime(ft[0]).replace(' UTC', '')}–${fmtTime(ft[ft.length - 1])}` : fmtTime(r.observed_at);
@@ -321,6 +385,7 @@
 
   function showReveal(res, round) {
     state.phase = 'reveal';
+    state.layer = 'main'; // the reveal shows the round's own picture
     setHintView(false);
     $('lightboxImg').src = state.puzzle.rounds[state.index].image;
     $('hintBtn').hidden = true;
@@ -328,9 +393,10 @@
     const a = res.answer;
 
     $('result').hidden = false;
-    $('resDist').textContent = `${Math.round(res.distance_km).toLocaleString()} km${res.hint_used ? ' · hint' : ''}`;
+    const hintNote = res.hint_level ? ` · hint ${res.hint_level}` : res.hint_used ? ' · hint' : '';
+    $('resDist').textContent = `${Math.round(res.distance_km).toLocaleString()} km${hintNote}`;
     countUp($('resScore'), res.score);
-    $('resQuip').textContent = quipFor(rawScore(res.score, res.hint_used)) + (res.hint_used ? ' (Hint noted.)' : '');
+    $('resQuip').textContent = quipFor(rawScore(res.score, multOf(res))) + (res.hint_used ? ' (Hint noted.)' : '');
     $('runningScore').textContent = total();
     const last = state.index === nRounds() - 1;
     const btn = $('actionBtn');
@@ -346,7 +412,7 @@
     $('sumDate').textContent = `SatTap · ${state.puzzle.date}`;
     $('sumTotal').textContent = total();
     $('sumMax').textContent = max;
-    const avg = state.results.reduce((a, r) => a + rawScore(r.score, r.hint_used), 0) / Math.max(state.results.length, 1);
+    const avg = state.results.reduce((a, r) => a + rawScore(r.score, multOf(r)), 0) / Math.max(state.results.length, 1);
     $('sumQuip').textContent = quipFor(Math.round(avg));
     const list = $('sumList');
     list.innerHTML = '';
@@ -379,7 +445,7 @@
     return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: 'UTC' });
   }
   function shareText() {
-    const cells = state.results.map((r) => `${r.score}${emojiFor(rawScore(r.score, r.hint_used))}${r.hint_used ? '💡' : ''}`);
+    const cells = state.results.map((r) => `${r.score}${emojiFor(rawScore(r.score, multOf(r)))}${r.hint_used ? '💡' : ''}`);
     return [`${location.host} ${shareDate()}`, cells.join(' '), `Final score: ${total()}`].join('\n');
   }
 
@@ -395,12 +461,18 @@
         const res = await getJSON('/api/guess', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ date: state.puzzle.date, round: round.round, lat: state.guess.lat, lon: state.guess.lon, hint_used: state.hintUsed, player: player ? player.player : undefined }),
+          body: JSON.stringify({
+            date: state.puzzle.date, round: round.round, lat: state.guess.lat, lon: state.guess.lon,
+            hint_used: state.hintUsed, hint_level: ladderOf(round) ? state.hintLevel : undefined,
+            player: player ? player.player : undefined,
+          }),
         });
         state.results.push({
           round: round.round,
           score: res.score,
           hint_used: !!res.hint_used,
+          hint_level: res.hint_level ?? null,
+          hint_mult: res.hint_mult ?? null,
           distance_km: res.distance_km,
           guess: { ...state.guess },
           answer: res.answer,
@@ -426,11 +498,21 @@
   function bindUi() {
     $('actionBtn').addEventListener('click', onAction);
     $('hintBtn').addEventListener('click', onHint);
+    $('layerBtn').addEventListener('click', onLayer);
     window.addEventListener('resize', layoutHintBox);
     $('cropBtn').addEventListener('click', () => { $('lightbox').hidden = false; });
+    const openInfo = () => { $('chanInfo').hidden = false; $('chanInfo').querySelector('.chan-card').focus(); };
+    const closeInfo = () => { $('chanInfo').hidden = true; $('infoBtn').focus(); };
+    $('infoBtn').addEventListener('click', openInfo);
+    $('chanClose').addEventListener('click', closeInfo);
+    $('chanDone').addEventListener('click', closeInfo);
+    $('chanInfo').addEventListener('click', (e) => { if (e.target === $('chanInfo')) closeInfo(); });
     $('lightboxClose').addEventListener('click', () => { $('lightbox').hidden = true; });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { $('lightbox').hidden = true; }
+      if (e.key === 'Escape') {
+        $('lightbox').hidden = true;
+        if (!$('chanInfo').hidden) closeInfo();
+      }
     });
     $('rerollBtn').addEventListener('click', async () => {
       $('rerollBtn').disabled = true;
@@ -478,6 +560,7 @@
         state.results = saved.results;
         state.index = Math.min(saved.results.length, nRounds() - 1);
         state.pendingHint = saved.hintRound ?? null;
+        state.pendingLevel = saved.hintLevel || 0;
       }
       if (state.results.length >= nRounds()) {
         // Finished already: show the last round's reveal behind the summary, never allow a re-guess.

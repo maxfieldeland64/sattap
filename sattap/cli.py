@@ -1,6 +1,6 @@
 """Command line entry point.
 
-  python -m sattap.cli fetch [--frames 6]          # download the last hour of GeoColor (East, West, Meteosat)
+  python -m sattap.cli fetch [--frames 6]          # download the last hour of GeoColor (East, West, Meteosat) + GOES Band 13
   python -m sattap.cli build [--date YYYY-MM-DD]   # build a daily puzzle from cached images
   python -m sattap.cli synth                       # make fake full-disk images (offline dev)
   python -m sattap.cli check-geo                   # sanity-check geometry numbers
@@ -36,7 +36,7 @@ def _parse_at(text: str | None) -> datetime | None:
 
 def _cached_sources(cache_dir: Path, at: datetime | None = None) -> list[SourceImage]:
     """Newest cached image per satellite (at or before `at`), observed_at parsed from the filename."""
-    from .sources import CACHE_NAME_RE
+    from .sources import B13_NAME_RE, CACHE_NAME_RE
 
     best: dict[str, SourceImage] = {}
     seen: dict[str, dict[datetime, Path]] = {}
@@ -54,15 +54,28 @@ def _cached_sources(cache_dir: Path, at: datetime | None = None) -> list[SourceI
         seen.setdefault(key, {})[t] = p
         if key not in best or t > best[key].observed_at:
             best[key] = SourceImage(key, p, t)
+    # Band 13 frames cached next to the GeoColor ones (GOES only)
+    b13: dict[str, dict[datetime, Path]] = {}
+    for p in sorted(cache_dir.glob("*.jpg")):
+        m = B13_NAME_RE.fullmatch(p.name)
+        if not m:
+            continue
+        key = next((k for k, v in C.SATELLITES.items() if v["slug"] == m.group(2)), None)
+        if key is not None:
+            b13.setdefault(key, {})[datetime.strptime(m.group(1), "%Y%j%H%M").replace(tzinfo=timezone.utc)] = p
     # loop = cached frames at the 10-minute slots ending at the newest frame (oldest first)
     for key, src in best.items():
         slots = [src.observed_at - timedelta(minutes=C.LOOP_STEP_MIN * k) for k in range(C.LOOP_FRAMES - 1, -1, -1)]
         src.loop = [(t, seen[key][t]) for t in slots if t in seen[key]]
+        # the Band 13 round needs a Band 13 image for the puzzle frame itself; earlier loop frames are optional
+        have = b13.get(key, {})
+        if src.observed_at in have:
+            src.b13_loop = [(t, have[t]) for t, _ in (src.loop or [(src.observed_at, src.path)]) if t in have]
     return list(best.values())
 
 
 def cmd_fetch(args) -> None:
-    from .sources import fetch_loop
+    from .sources import fetch_b13_frames, fetch_loop, has_b13
 
     from .sun import latest_solar_noon
 
@@ -90,6 +103,13 @@ def cmd_fetch(args) -> None:
         print(f"{key}: {len(frames)} frames, {frames[0].observed_at:%H:%M} to {frames[-1].observed_at:%H:%M} UTC")
         for f in frames:
             print(f"  {f.path}")
+        # Band 13 for the same times, for the last round. Optional: the day builds without it.
+        if has_b13(key):
+            try:
+                b13 = fetch_b13_frames(key, [f.observed_at for f in frames], cache)
+                print(f"{key}: {len(b13)} Band 13 frames")
+            except Exception as e:  # noqa: BLE001
+                print(f"{key}: Band 13 unavailable, the last round will use GeoColor: {e}")
     if len(failed) == len(C.SATELLITES):
         raise SystemExit("No satellite could be fetched.")
 
@@ -114,8 +134,8 @@ def cmd_build(args) -> None:
 
 
 def cmd_synth(args) -> None:
-    from .sources import cache_name
-    from .synth import make_full_disk
+    from .sources import cache_name, has_b13
+    from .synth import make_b13_disk, make_full_disk
 
     cache = Path(args.data) / "cache"
     now = datetime.now(timezone.utc)
@@ -124,6 +144,10 @@ def cmd_synth(args) -> None:
         out = cache / cache_name(key, now, args.size)
         make_full_disk(key, args.size, out, seed=args.seed + i)
         print("wrote", out)
+        if has_b13(key):
+            b13_out = cache / cache_name(key, now, args.size, C.B13_PRODUCT)
+            make_b13_disk(key, args.size, b13_out, seed=args.seed + i)
+            print("wrote", b13_out)
 
 
 def cmd_check_geo(_args) -> None:

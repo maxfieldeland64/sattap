@@ -19,9 +19,16 @@ export function scoreForDistance(distanceKm, { free_km, scale_km }) {
   return roundHalfUp(100 * Math.exp(-over / scale_km));
 }
 
-export function scoreGuess(guess, answer, scoring, hintUsed = false) {
+// Multiplier once hint `level` has been reached on a hint-ladder round (0 = no hint).
+export function ladderMult(mults, level) {
+  return mults[Math.min(Math.max(level, 0), mults.length - 1)];
+}
+
+// `hintMult` (from a hint ladder) overrides the single-hint multiplier.
+export function scoreGuess(guess, answer, scoring, hintUsed = false, hintMult = null) {
   const d = haversineKm(guess.lon, guess.lat, answer.lon, answer.lat, scoring.earth_radius_km);
   let score = scoreForDistance(d, scoring);
-  if (hintUsed) score = roundHalfUp(score * scoring.hint_mult);
+  const mult = hintMult ?? (hintUsed ? scoring.hint_mult : 1);
+  if (mult !== 1) score = roundHalfUp(score * mult);
   return { distance_km: d, score };
 }

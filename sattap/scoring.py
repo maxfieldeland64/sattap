@@ -25,13 +25,25 @@ def score_for_distance(
     return _round_half_up(100.0 * math.exp(-over / scale_km))
 
 
+def ladder_mult(mults: list[float] | tuple[float, ...], level: int) -> float:
+    """Score multiplier once hint `level` has been reached on a hint-ladder round (0 = no hint)."""
+    return float(mults[min(max(int(level), 0), len(mults) - 1)])
+
+
 def score_guess(
-    guess_lon: float, guess_lat: float, ans_lon: float, ans_lat: float, hint_used: bool = False
+    guess_lon: float,
+    guess_lat: float,
+    ans_lon: float,
+    ans_lat: float,
+    hint_used: bool = False,
+    hint_mult: float | None = None,
 ) -> tuple[float, int]:
+    """Score a guess. `hint_mult` (from a hint ladder) overrides the single-hint multiplier."""
     d = float(haversine_km(guess_lon, guess_lat, ans_lon, ans_lat))
     score = score_for_distance(d)
-    if hint_used:
-        score = _round_half_up(score * C.HINT_SCORE_MULT)
+    mult = hint_mult if hint_mult is not None else (C.HINT_SCORE_MULT if hint_used else 1.0)
+    if mult != 1.0:
+        score = _round_half_up(score * mult)
     return d, score
 
 

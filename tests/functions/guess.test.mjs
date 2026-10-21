@@ -81,3 +81,51 @@ test('responses are never cached', async () => {
   const res = await post(env, { date: '2026-10-16', round: 1, lat: 0, lon: 0 });
   assert.equal(res.headers.get('cache-control'), 'no-store');
 });
+
+// ---- hint ladder (the Band 13 round) ----------------------------------------------------------
+// Expected values come from sattap/scoring.py: score_guess(..., hint_mult=m).
+const MULTS = [1.0, 0.85, 0.6];
+const ladderEnv = () => fakeEnv([
+  { round: 1, lat: 30, lon: -100 },
+  { round: 5, lat: 32, lon: -103.5, hint_mults: MULTS },
+]);
+const ladderGuess = (env, extra) => post(env, { date: '2026-10-16', round: 5, lat: 30, lon: -100, ...extra }).then((r) => r.json());
+
+test('a ladder round scores by hint level, matching the Python multipliers', async () => {
+  const env = ladderEnv();
+  // 400.9 km off: base score 90
+  const expected = [90, 77, 54];
+  for (const level of [0, 1, 2]) {
+    const body = await ladderGuess(env, { hint_level: level });
+    assert.equal(body.distance_km, 400.9);
+    assert.equal(body.score, expected[level], `level ${level}`);
+    assert.equal(body.hint_level, level);
+    assert.equal(body.hint_used, level > 0);
+    assert.equal(body.hint_mult, MULTS[level]);
+  }
+});
+
+test('ladder edge cases: bare hint_used is level 1, big levels clamp, the level beats hint_used', async () => {
+  const env = ladderEnv();
+  assert.equal((await ladderGuess(env, { hint_used: true })).hint_level, 1);
+  assert.equal((await ladderGuess(env, { hint_level: 7 })).hint_level, 2);
+  const both = await ladderGuess(env, { hint_used: false, hint_level: 2 });
+  assert.equal(both.hint_used, true);
+  assert.equal(both.hint_mult, 0.6);
+});
+
+test('plain rounds ignore hint_level and keep the single-hint multiplier', async () => {
+  const env = ladderEnv();
+  const plain = await (await post(env, { date: '2026-10-16', round: 1, lat: 30, lon: -100, hint_level: 2 })).json();
+  assert.deepEqual([plain.score, plain.hint_used, plain.hint_level, plain.hint_mult], [100, false, null, 1]);
+  const hinted = await (await post(env, { date: '2026-10-16', round: 1, lat: 30, lon: -100, hint_used: true })).json();
+  assert.deepEqual([hinted.score, hinted.hint_mult], [70, 0.7]);
+});
+
+test('hint_level must be an integer from 0 to 9', async () => {
+  const env = ladderEnv();
+  for (const bad of [-1, 10, 1.5, '1', null]) {
+    const res = await post(env, { date: '2026-10-16', round: 5, lat: 30, lon: -100, hint_level: bad });
+    assert.equal(res.status, 400, JSON.stringify(bad));
+  }
+});

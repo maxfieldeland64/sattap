@@ -7,6 +7,23 @@ All notable changes to SatTap are recorded here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Band 13 challenge as the last round.** Round 5 now shows the NOAA STAR CDN's enhanced Band 13
+  (clean longwave IR) image of a convective cell instead of GeoColor, and you pin where the cell is.
+  It has its own **hint ladder**: the first view is Band 13 only, hint 1 adds the GeoColor layer
+  of the same scene (with a switch between the two, score x0.85), hint 2 zooms out to the 3x-wider
+  view (x0.6). Penalties are applied server-side (`hint_level` on `/api/guess`, `hint_mults` in the
+  answers) and remembered across reloads; the other four rounds keep the single x0.7 wider-view hint.
+  - The CDN draws coastlines and borders on Band 13, so the crop is always open ocean with a margin
+    (no land in 1.2x the crop's half-width). That also takes shoreline matching out of this round:
+    players read the weather instead (cloud regime, latitude, cell structure) until the zoom-out.
+  - The crop is centred on the strongest cold-top core, found from the enhancement's colour ramp
+    (`sattap/b13.py`), in daylight, and kept 1,500 km from the other answers.
+  - GOES-East and West only (Meteosat is not on the CDN). If a source has no Band 13 for the puzzle
+    frame, or no cell qualifies, the day falls back to five GeoColor rounds. `fetch` now also pulls
+    Band 13 for the same timestamps (6 more ~10 MB frames per GOES satellite), and `synth` makes a
+    fake Band 13 disk for offline work.
+
+### Added
 - **Landing page lists the satellites** (GOES-West, GOES-East, Meteosat) and the regions they cover, so players know where a crop can be.
 - **Meteosat-12 (0°) as a third satellite**, covering Europe, Africa and the eastern Atlantic.
   Frames come from EUMETSAT's public EUMETView WMS (no account or key), in the same geostationary
